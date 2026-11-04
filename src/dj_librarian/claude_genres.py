@@ -12,12 +12,10 @@ import threading
 from collections import Counter
 from pathlib import Path
 
-from dj_librarian import tagging
+from dj_librarian import store, tagging
 from dj_librarian.library import Track
 from dj_librarian.proposals import Proposal
 
-CACHE_PATH = Path.home() / ".cache" / "dj-librarian" / "claude_genres.json"
-SOURCE_URLS_PATH = Path.home() / ".cache" / "dj-librarian" / "source_urls.json"
 PROMPT_VERSION = 2  # Increase when the prompt changes. Then `ask-claude --refresh` asks about the tracks again.
 REFRESH_TAG_GROWTH = 1.1  # `--refresh` also asks again if you tagged 10% more tracks since the answer
 MODEL = "opus"
@@ -80,7 +78,7 @@ URL = re.compile(r"https?://[\w.-]+\.bandcamp\.com\S*", re.IGNORECASE)
 
 
 def load_answers() -> dict[str, dict]:
-    return json.loads(CACHE_PATH.read_text()) if CACHE_PATH.exists() else {}
+    return store.read_json(store.CLAUDE_ANSWERS, {})
 
 
 def is_stale(answer: dict, tags: int) -> bool:
@@ -89,18 +87,18 @@ def is_stale(answer: dict, tags: int) -> bool:
 
 
 def save_answers(answers: dict[str, dict]) -> None:
-    CACHE_PATH.write_text(json.dumps(answers, indent=1, ensure_ascii=False))
+    store.write_json(store.CLAUDE_ANSWERS, answers)
 
 
 def source_urls() -> dict[str, str]:
     """Bandcamp links that were in the comments before dj-librarian rewrote them, recovered from backups."""
-    if SOURCE_URLS_PATH.exists():
-        return json.loads(SOURCE_URLS_PATH.read_text())
+    if store.SOURCE_URLS.exists():
+        return store.read_json(store.SOURCE_URLS, {})
     from dj_librarian.library import MasterDatabase
-    from dj_librarian.writer import BACKUP_DIR, DB_FILES
+    from dj_librarian.writer import DB_FILES
 
     urls: dict[str, str] = {}
-    for backup in sorted(BACKUP_DIR.iterdir()) if BACKUP_DIR.exists() else []:
+    for backup in sorted(store.BACKUP_DIR.iterdir()) if store.BACKUP_DIR.exists() else []:
         with tempfile.TemporaryDirectory() as tmp:  # never open a backup in place
             for name in DB_FILES:
                 if (backup / name).exists():
@@ -108,7 +106,7 @@ def source_urls() -> dict[str, str]:
             for content in MasterDatabase(path=Path(tmp) / "master.db").get_content().all():
                 if content.ID not in urls and (match := URL.search(content.Commnt or "")):
                     urls[content.ID] = match.group(0)
-    SOURCE_URLS_PATH.write_text(json.dumps(urls, indent=1))
+    store.write_json(store.SOURCE_URLS, urls)
     return urls
 
 

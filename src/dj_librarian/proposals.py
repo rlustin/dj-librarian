@@ -1,16 +1,10 @@
 """What dj-librarian would change for each track. Shared by `report`, `review-genres` and `apply`."""
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
 
-from dj_librarian import library, tagging
+from dj_librarian import library, store, tagging
 from dj_librarian.cache import Cache
 from dj_librarian.progress import Steps
-
-GENRE_DECISIONS_PATH = Path.home() / ".cache" / "dj-librarian" / "genre_decisions.json"
-GENERATED_CUES_PATH = Path.home() / ".cache" / "dj-librarian" / "generated_cues.json"
-GUESSED_GENRES_PATH = Path.home() / ".cache" / "dj-librarian" / "generated_genres.json"
 
 
 @dataclass
@@ -41,14 +35,11 @@ class Context:
 
 def load_genre_decisions() -> dict[str, str | None]:
     """content ID -> your genre. None: keep the genre in rekordbox. "": remove the genre."""
-    """content ID -> approved genre, or None if you keep the current genre."""
-    if not GENRE_DECISIONS_PATH.exists():
-        return {}
-    return json.loads(GENRE_DECISIONS_PATH.read_text())
+    return store.read_json(store.GENRE_DECISIONS, {})
 
 
 def save_genre_decisions(decisions: dict[str, str | None]) -> None:
-    GENRE_DECISIONS_PATH.write_text(json.dumps(decisions, indent=1, ensure_ascii=False))
+    store.write_json(store.GENRE_DECISIONS, decisions)
 
 
 def save_genre_decision(track_id: str, genre: str | None) -> None:
@@ -58,25 +49,25 @@ def save_genre_decision(track_id: str, genre: str | None) -> None:
 
 def load_generated_cues(db) -> set[str]:
     """UUIDs of the hot cues that dj-librarian created. A later run can move or replace only these cues."""
-    if not GENERATED_CUES_PATH.exists():
+    if not store.GENERATED_CUES.exists():
         # Earlier versions recognised generated cues by their label
         ids = {c.UUID for c in db.get_cue().all() if c.Comment in tagging.CUE_NAMES}
         save_generated_cues(ids)
         return ids
-    return set(json.loads(GENERATED_CUES_PATH.read_text()))
+    return set(store.read_json(store.GENERATED_CUES, []))
 
 
 def save_generated_cues(ids: set[str]) -> None:
-    GENERATED_CUES_PATH.write_text(json.dumps(sorted(ids), indent=1))
+    store.write_json(store.GENERATED_CUES, sorted(ids))
 
 
 def load_guessed_genres() -> dict[str, str]:
     """content ID -> genre that dj-librarian wrote from its own guess, without your review."""
-    return json.loads(GUESSED_GENRES_PATH.read_text()) if GUESSED_GENRES_PATH.exists() else {}
+    return store.read_json(store.GUESSED_GENRES, {})
 
 
 def save_guessed_genres(genres: dict[str, str]) -> None:
-    GUESSED_GENRES_PATH.write_text(json.dumps(genres, indent=1, ensure_ascii=False))
+    store.write_json(store.GUESSED_GENRES, genres)
 
 
 def build(

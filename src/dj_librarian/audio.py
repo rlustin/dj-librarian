@@ -7,7 +7,6 @@ without a new audio analysis.
 
 import json
 import os
-from pathlib import Path
 
 import numpy as np
 
@@ -20,7 +19,8 @@ essentia.log.infoActive = False
 
 import essentia.standard as es
 
-MODELS_DIR = Path.home() / ".cache" / "dj-librarian" / "models"
+from dj_librarian.store import MODELS_DIR
+
 MODELS_URL = "https://essentia.upf.edu/models"
 MODEL_FILES = {
     "discogs-effnet-bs64-1": "feature-extractors/discogs-effnet",

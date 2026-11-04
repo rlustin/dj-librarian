@@ -9,13 +9,13 @@ from pathlib import Path
 import numpy as np
 
 from dj_librarian.audio import ANALYSIS_VERSION
+from dj_librarian.store import ANALYSIS_CACHE
 
-CACHE_PATH = Path.home() / ".cache" / "dj-librarian" / "analysis.sqlite"
 ARRAYS = {"embedding": np.float32, "env_full": np.float16, "env_low": np.float16}
 
 
 class Cache:
-    def __init__(self, path: Path = CACHE_PATH) -> None:
+    def __init__(self, path: Path = ANALYSIS_CACHE) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
         self.conn.execute(

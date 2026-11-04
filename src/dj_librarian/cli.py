@@ -6,7 +6,7 @@ import time
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from dj_librarian import library, proposals, tagging
+from dj_librarian import library, proposals, store, tagging
 from dj_librarian.cache import Cache
 from dj_librarian.player import SEEK_SECONDS, Player
 from dj_librarian.progress import LiveStatus, Steps
@@ -553,7 +553,7 @@ def cmd_ask_claude(args) -> None:
     vocab = claude_genres.vocabulary(context.tracks, yours)
     peers = claude_genres.Peers(context.tracks, yours)
     tags = sum(bool(yours(t)) for t in context.tracks)
-    if not claude_genres.SOURCE_URLS_PATH.exists():
+    if not store.SOURCE_URLS.exists():
         steps.step("Get the Bandcamp links from the backups (one time)")
     urls = claude_genres.source_urls()
     steps.done()
@@ -761,10 +761,10 @@ def _db_path():
 def cmd_restore(args) -> None:
     from dj_librarian import writer
 
-    backups = sorted(p for p in writer.BACKUP_DIR.iterdir() if p.is_dir()) if writer.BACKUP_DIR.exists() else []
+    backups = sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir()) if store.BACKUP_DIR.exists() else []
     if not backups:
         raise SystemExit("no backups found")
-    chosen = writer.BACKUP_DIR / args.backup if args.backup else backups[-1]
+    chosen = store.BACKUP_DIR / args.backup if args.backup else backups[-1]
     writer.ensure_rekordbox_closed()
     if input(f"replace {_db_path()} with backup {chosen.name}? [y/N] ").strip().lower() != "y":
         print("cancelled")

@@ -1,18 +1,16 @@
 """Find what looks wrong in the library: duplicates, odd genre names, tracks that do not sound
 like their genre, and BPM at half or double the BPM of their genre. Read-only."""
 
-import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 
+from dj_librarian import store
 from dj_librarian.library import Track
 from dj_librarian.tagging import KNN_K, similar_pairs, similarity_rows
 
-OUTLIERS_REVIEWED_PATH = Path.home() / ".cache" / "dj-librarian" / "outliers_reviewed.json"
 DUPLICATE_SIMILARITY = 0.985  # Above this, two tracks have the same audio (copy, or edit of the same track)
 MIN_GENRE_TRACKS = 10  # Smaller genres give too few neighbours to judge a track
 RARE_GENRE_TRACKS = 2
@@ -59,12 +57,11 @@ class Report:
 
 def load_outliers_reviewed() -> dict[str, str]:
     """content ID -> the genre that you confirmed in `review-genres --outliers`."""
-    return json.loads(OUTLIERS_REVIEWED_PATH.read_text()) if OUTLIERS_REVIEWED_PATH.exists() else {}
+    return store.read_json(store.OUTLIERS_REVIEWED, {})
 
 
 def save_outlier_reviewed(track_id: str, genre: str) -> None:
-    reviewed = load_outliers_reviewed() | {track_id: genre}
-    OUTLIERS_REVIEWED_PATH.write_text(json.dumps(reviewed, indent=1, ensure_ascii=False))
+    store.write_json(store.OUTLIERS_REVIEWED, load_outliers_reviewed() | {track_id: genre})
 
 
 def your_genres(tracks: list[Track], guessed: dict[str, str], decisions: dict[str, str | None]) -> dict[str, str]:

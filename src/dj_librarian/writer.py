@@ -1,6 +1,5 @@
 """Write proposals into a rekordbox master.db. Close rekordbox before you write."""
 
-import json
 import shutil
 from collections import Counter
 from datetime import datetime
@@ -10,6 +9,7 @@ from uuid import uuid4
 from pyrekordbox.masterdb import models
 from pyrekordbox.utils import get_rekordbox_pid
 
+from dj_librarian import store
 from dj_librarian.library import HOT_CUE_KINDS, MasterDatabase
 from dj_librarian.proposals import (
     Proposal,
@@ -19,7 +19,6 @@ from dj_librarian.proposals import (
     save_guessed_genres,
 )
 
-BACKUP_DIR = Path.home() / ".cache" / "dj-librarian" / "backups"
 SLOT_TO_KIND = {slot: kind for kind, slot in HOT_CUE_KINDS.items()}
 PLAYLISTS_XML = "masterPlaylists6.xml"  # rekordbox keeps the playlist tree in this file too
 DB_FILES = ("master.db", "master.db-wal", "master.db-shm", PLAYLISTS_XML)
@@ -34,7 +33,11 @@ def ensure_rekordbox_closed() -> None:
 
 
 def backup(db_path: Path) -> Path:
-    target = BACKUP_DIR / datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    target, n = store.BACKUP_DIR / stamp, 1
+    while target.exists():  # Two writes in the same second
+        n += 1
+        target = store.BACKUP_DIR / f"{stamp}_{n}"
     target.mkdir(parents=True)
     for name in DB_FILES:
         if (db_path.parent / name).exists():
@@ -49,7 +52,7 @@ def backup_analysis(backup_dir: Path, paths: list[Path]) -> None:
         name = f"{n:04d}_{path.name}"
         shutil.copy2(path, backup_dir / ANALYSIS_DIR / name)
         manifest[name] = str(path)
-    (backup_dir / ANALYSIS_MANIFEST).write_text(json.dumps(manifest, indent=1))
+    store.write_json(backup_dir / ANALYSIS_MANIFEST, manifest)
 
 
 def restore(backup_dir: Path, db_path: Path) -> Path:
@@ -66,7 +69,7 @@ def restore(backup_dir: Path, db_path: Path) -> Path:
         if (backup_dir / name).exists():
             shutil.copy2(backup_dir / name, db_path.parent / name)
     if (backup_dir / ANALYSIS_MANIFEST).exists():
-        for name, original in json.loads((backup_dir / ANALYSIS_MANIFEST).read_text()).items():
+        for name, original in store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).items():
             shutil.copy2(backup_dir / ANALYSIS_DIR / name, original)
     return current
 
