@@ -1,0 +1,23 @@
+[project]
+name = "dj-librarian"
+version = "0.1.0"
+description = "Add genres, mood, energy and hot cues to a rekordbox 7 library, from audio analysis"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-*"]
+authors = [
+    { name = "Raphaël Lustin", email = "raphael@lustin.fr" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "essentia-tensorflow>=2.1b6.dev1438",
+    "numpy>=2.5.4",
+    "pyrekordbox>=0.5.0",
+]
+
+[project.scripts]
+dj-librarian = "dj_librarian:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"

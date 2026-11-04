@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.ruff_cache/
+.pytest_cache/
+.DS_Store
+# Reports hold the paths and names of your own library
+*.csv
