@@ -47,13 +47,8 @@ def save_genre_decision(track_id: str, genre: str | None) -> None:
     save_genre_decisions(load_genre_decisions() | {track_id: genre})
 
 
-def load_generated_cues(db) -> set[str]:
+def load_generated_cues() -> set[str]:
     """UUIDs of the hot cues that dj-librarian created. A later run can move or replace only these cues."""
-    if not store.GENERATED_CUES.exists():
-        # Earlier versions recognised generated cues by their label
-        ids = {c.UUID for c in db.get_cue().all() if c.Comment in tagging.CUE_NAMES}
-        save_generated_cues(ids)
-        return ids
     return set(store.read_json(store.GENERATED_CUES, []))
 
 
@@ -97,7 +92,7 @@ def build(
     genres = tagging.guess_genres(everything, analysis, guessed, approved)
     moods = tagging.guess_moods(ids, analysis)
     energy = tagging.guess_energy(ids, analysis)
-    generated = load_generated_cues(db)
+    generated = load_generated_cues()
 
     only = set(analysis) if track_ids is None else set(analysis) & track_ids
     proposals = []

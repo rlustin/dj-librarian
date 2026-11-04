@@ -285,7 +285,7 @@ def cmd_dedupe(args) -> None:
     tracks = library.load_tracks(db, with_structure=False)
     decisions = proposals.load_genre_decisions()
     yours = checks.your_genres(tracks, proposals.load_guessed_genres(), decisions)
-    generated = proposals.load_generated_cues(db)
+    generated = proposals.load_generated_cues()
     steps.step("Find the copies")
     groups, other_length = dedupe.find(db, tracks, analysis, yours, generated)
     steps.step("Find the missing files")

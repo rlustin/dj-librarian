@@ -96,7 +96,7 @@ def apply(db: MasterDatabase, proposals: list[Proposal], parts: set[str], record
     """Use `record=False` for a test copy. The records of what dj-librarian wrote apply to the real library only."""
     stats = Counter()
     genres = {g.Name: g for g in db.get_genre().all()}
-    generated = load_generated_cues(db)
+    generated = load_generated_cues()
     guessed = load_guessed_genres()
     for proposal in proposals:
         todo = changes(proposal, parts)
