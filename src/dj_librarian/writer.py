@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+from pyrekordbox.config import get_config
 from pyrekordbox.masterdb import models
 from pyrekordbox.utils import get_rekordbox_pid
 
@@ -30,6 +31,19 @@ ANALYSIS_MANIFEST = "analysis.json"  # copy name -> original path
 def ensure_rekordbox_closed() -> None:
     if get_rekordbox_pid():
         raise SystemExit("rekordbox is open. Close rekordbox first, because it can overwrite or corrupt the changes.")
+
+
+def db_path() -> Path:
+    config = get_config("rekordbox7").get("db_path") or get_config("rekordbox6")["db_path"]
+    return Path(config)
+
+
+def open_test_copy(path: str) -> MasterDatabase:
+    """A copy of master.db, for tests. rekordbox can be open, because it does not use that file."""
+    import pyrekordbox.masterdb.database as masterdb
+
+    masterdb.get_rekordbox_pid = lambda *a, **k: 0
+    return MasterDatabase(path=path)
 
 
 def backup(db_path: Path) -> Path:
