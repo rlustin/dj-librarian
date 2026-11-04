@@ -13,12 +13,12 @@ import numpy as np
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 
-import essentia  # noqa: E402
+import essentia
 
 essentia.log.warningActive = False
 essentia.log.infoActive = False
 
-import essentia.standard as es  # noqa: E402
+import essentia.standard as es
 
 MODELS_DIR = Path.home() / ".cache" / "dj-librarian" / "models"
 MODELS_URL = "https://essentia.upf.edu/models"
@@ -75,7 +75,7 @@ class Analyzer:
 
     def __init__(self) -> None:
         download_models()
-        graph = lambda name: str(MODELS_DIR / f"{name}.pb")  # noqa: E731
+        graph = lambda name: str(MODELS_DIR / f"{name}.pb")
 
         effnet_meta = _meta("discogs-effnet-bs64-1")
         self.effnet = es.TensorflowPredictEffnetDiscogs(
@@ -179,5 +179,5 @@ def _envelopes(audio: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         power = spectrum(window(frame)) ** 2
         full.append(power.sum())
         low.append(power[low_bins].sum())
-    to_db = lambda x: (10 * np.log10(np.asarray(x) + 1e-10)).astype(np.float16)  # noqa: E731
+    to_db = lambda x: (10 * np.log10(np.asarray(x) + 1e-10)).astype(np.float16)
     return to_db(full), to_db(low)

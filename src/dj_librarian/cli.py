@@ -26,7 +26,7 @@ def _init_worker() -> None:
 def _analyze(track_id: str, path: str):
     try:
         return track_id, path, _analyzer.analyze(path), None
-    except Exception as e:  # one bad file must not stop a multi-hour run
+    except Exception as e:  # noqa: BLE001 - one bad file must not stop a multi-hour run
         return track_id, path, None, f"{type(e).__name__}: {e}"
 
 
@@ -77,7 +77,7 @@ def _fill_audio_start(cache: Cache, track_ids: set[str], workers: int) -> None:
         for done, future in enumerate(as_completed(futures), 1):
             try:
                 cache.set_field(futures[future], "audio_start", future.result())
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one bad file must not stop the others
                 print(f"\nfailed: {futures[future]}: {e}", file=sys.stderr)
             print(f"\r{done}/{len(todo)}", end="", flush=True)
     print()
@@ -549,7 +549,7 @@ def cmd_ask_claude(args) -> None:
     guessed = proposals.load_guessed_genres()
     decisions = proposals.load_genre_decisions()
     approved = {i: g for i, g in decisions.items() if g is not None}
-    yours = lambda t: approved[t.id] if t.id in approved else (t.genre if guessed.get(t.id) != t.genre else None)  # noqa: E731
+    yours = lambda t: approved[t.id] if t.id in approved else (t.genre if guessed.get(t.id) != t.genre else None)
     vocab = claude_genres.vocabulary(context.tracks, yours)
     peers = claude_genres.Peers(context.tracks, yours)
     tags = sum(bool(yours(t)) for t in context.tracks)
@@ -614,7 +614,7 @@ def cmd_ask_claude(args) -> None:
                 job, batch = futures[future]
                 try:
                     answers_ = future.result()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - one failed call must not stop the others
                     status.finish(job, [], error=str(e)[:120])
                     continue
                 titles = {p.track.id: f"{p.track.artist} - {p.track.title}" for p in batch}

@@ -98,8 +98,8 @@ def guess_genres(
     by_id = {t.id: t for t in tracks}
     embeddings = np.stack([analysis[i]["embedding"] for i in ids])
     embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
-    genre = lambda t: approved.get(t.id, t.genre)  # noqa: E731
-    yours = lambda t: bool(approved[t.id]) if t.id in approved else bool(t.genre and guessed.get(t.id) != t.genre)  # noqa: E731
+    genre = lambda t: approved.get(t.id, t.genre)
+    yours = lambda t: bool(approved[t.id]) if t.id in approved else bool(t.genre and guessed.get(t.id) != t.genre)
     labeled = [n for n, i in enumerate(ids) if yours(by_id[i])]
     labels = [genre(by_id[ids[n]]) for n in labeled]
     similarity = embeddings @ embeddings[labeled].T if labeled else np.zeros((len(ids), 0))
@@ -250,7 +250,7 @@ def _level(result: dict, start: float, end: float) -> float:
     a, b = int(start / hop), int(end / hop)
     if b - a < 2 or a < 0:
         return -np.inf
-    to_power = lambda db: 10 ** (db / 10)  # noqa: E731
+    to_power = lambda db: 10 ** (db / 10)
     full = 10 * np.log10(to_power(result["env_full"][a:b]).mean())
     low = 10 * np.log10(to_power(result["env_low"][a:b]).mean())
     return (full + low) / 2
@@ -287,7 +287,7 @@ def _intro_end(track: Track, levels: np.ndarray, boundaries: list[int]) -> int |
 
 def _full_energy(levels: np.ndarray, boundaries: list[int], after: int) -> int | None:
     """Start of the first phrase whose loudness (full band + kick/bass band) is near the track's peak."""
-    to_power = lambda db: 10 ** (db / 10)  # noqa: E731
+    to_power = lambda db: 10 ** (db / 10)
     phrases = {
         b: 10 * np.log10(to_power(levels[b:b + PHRASE_BARS]).mean())
         for b in boundaries

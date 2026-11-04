@@ -72,8 +72,8 @@ class LiveStatus:
         failed = f" · {self.failed} failed" if self.failed else ""
         lines = [
             self.title,
-            f"  {bar} {self.done_items}/{self.total_items} {self.item_name} ({share:.0%}) · "
-            f"{self.done_jobs}/{self.total_jobs} calls{failed} · {_duration(elapsed)} elapsed{eta}",
+            (f"  {bar} {self.done_items}/{self.total_items} {self.item_name} ({share:.0%}) · "
+             f"{self.done_jobs}/{self.total_jobs} calls{failed} · {_duration(elapsed)} elapsed{eta}"),
         ]
         if self.running:
             lines.append("  now:")

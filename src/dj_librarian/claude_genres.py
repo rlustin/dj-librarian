@@ -154,8 +154,8 @@ def describe(p: Proposal, by_id: dict[str, Track], url: str | None, peers: Peers
     )
     lines = [
         f"id: {t.id}",
-        f"artist: {t.artist} | title: {t.title} | album: {t.album or '-'} | label: {t.label or '-'} "
-        f"| year: {t.year or '-'} | folder: {folder}",
+        (f"artist: {t.artist} | title: {t.title} | album: {t.album or '-'} | label: {t.label or '-'} "
+         f"| year: {t.year or '-'} | folder: {folder}"),
         f"bpm: {t.bpm} | key: {tagging.to_camelot(t.key) or '-'} | energy: {p.energy}/10 | moods: {'/'.join(p.moods)}",
         f"audio style model (Discogs styles, 0-1): {styles}",
         f"most similar tracks the DJ tagged: {similar or '-'}",

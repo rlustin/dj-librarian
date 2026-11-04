@@ -3,8 +3,8 @@
 import logging
 import os
 import unicodedata
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -12,7 +12,8 @@ import numpy as np
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pyrekordbox")
 logging.getLogger("pyrekordbox").setLevel(logging.ERROR)
 
-from pyrekordbox import AnlzFile, MasterDatabase  # noqa: E402
+from pyrekordbox import AnlzFile, MasterDatabase
+from pyrekordbox.masterdb import models
 
 # djmdCue.Kind values of hot cues. 0 is a memory cue. Rekordbox does not use 4.
 FEW_TRACKS = 500  # Up to this number of IDs, ask the database for these tracks only, not the whole library
@@ -187,7 +188,7 @@ def read_structure(dat: str | None, ext: str | None) -> dict | None:
             ext_file = AnlzFile.parse_file(ext)
             if "PSSI" in ext_file.tag_types:
                 pssi = ext_file.get_tag("PSSI").content
-    except Exception:
+    except Exception:  # noqa: BLE001 - an analysis file that pyrekordbox cannot read is like no file
         return None
     if times is None or len(times) < 2:
         return None
@@ -195,7 +196,7 @@ def read_structure(dat: str | None, ext: str | None) -> dict | None:
     phrases = []
     if pssi is not None:
         names = PHRASE_KINDS.get(int(pssi.mood), {})
-        beat_time = lambda beat: float(times[min(max(beat - 1, 0), len(times) - 1)])  # noqa: E731
+        beat_time = lambda beat: float(times[min(max(beat - 1, 0), len(times) - 1)])
         entries = list(pssi.entries)
         for i, entry in enumerate(entries):
             end_beat = entries[i + 1].beat if i + 1 < len(entries) else pssi.end_beat
