@@ -553,9 +553,8 @@ def cmd_ask_claude(args) -> None:
     vocab = claude_genres.vocabulary(context.tracks, yours)
     peers = claude_genres.Peers(context.tracks, yours)
     tags = sum(bool(yours(t)) for t in context.tracks)
-    if not store.SOURCE_URLS.exists():
-        steps.step("Get the Bandcamp links from the backups (one time)")
-    urls = claude_genres.source_urls()
+    steps.step("Find the Bandcamp links in the comments and the backups")
+    urls = claude_genres.source_urls(context.tracks)
     steps.done()
     web = not args.no_web
 

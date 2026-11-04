@@ -90,24 +90,30 @@ def save_answers(answers: dict[str, dict]) -> None:
     store.write_json(store.CLAUDE_ANSWERS, answers)
 
 
-def source_urls() -> dict[str, str]:
-    """Bandcamp links that were in the comments before dj-librarian rewrote them, recovered from backups."""
-    if store.SOURCE_URLS.exists():
-        return store.read_json(store.SOURCE_URLS, {})
+def source_urls(tracks: list[Track]) -> dict[str, str]:
+    """Bandcamp links in the comments, now or in the backups.
+
+    `apply` removes a comment that is only a link (see tagging.BOILERPLATE). The backups from before keep it.
+    """
     from dj_librarian.library import MasterDatabase
     from dj_librarian.writer import DB_FILES
 
-    urls: dict[str, str] = {}
-    for backup in sorted(store.BACKUP_DIR.iterdir()) if store.BACKUP_DIR.exists() else []:
+    record = store.read_json(store.SOURCE_URLS, {"backups": [], "urls": {}})
+    backups = sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir()) if store.BACKUP_DIR.exists() else []
+    new = [b for b in backups if b.name not in record["backups"] and (b / "master.db").exists()]
+    for backup in new:
         with tempfile.TemporaryDirectory() as tmp:  # never open a backup in place
             for name in DB_FILES:
                 if (backup / name).exists():
                     shutil.copy2(backup / name, Path(tmp) / name)
             for content in MasterDatabase(path=Path(tmp) / "master.db").get_content().all():
-                if content.ID not in urls and (match := URL.search(content.Commnt or "")):
-                    urls[content.ID] = match.group(0)
-    store.write_json(store.SOURCE_URLS, urls)
-    return urls
+                if content.ID not in record["urls"] and (match := URL.search(content.Commnt or "")):
+                    record["urls"][content.ID] = match.group(0)
+        record["backups"].append(backup.name)
+    if new:
+        store.write_json(store.SOURCE_URLS, record)
+    current = {t.id: match.group(0) for t in tracks if (match := URL.search(t.comment or ""))}
+    return record["urls"] | current
 
 
 def vocabulary(tracks: list[Track], genre_of) -> list[tuple[str, int]]:
