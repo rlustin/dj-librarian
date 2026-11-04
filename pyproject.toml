@@ -28,5 +28,8 @@ dev = ["pytest>=8", "ruff>=0.17"]
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+extend-select = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -65,7 +65,9 @@ def save_guessed_genres(genres: dict[str, str]) -> None:
     store.write_json(store.GUESSED_GENRES, genres)
 
 
-def your_genres(tracks: list[library.Track], guessed: dict[str, str], decisions: dict[str, str | None]) -> dict[str, str]:
+def your_genres(
+    tracks: list[library.Track], guessed: dict[str, str], decisions: dict[str, str | None]
+) -> dict[str, str]:
     """content ID -> the genre that you gave: in rekordbox, or in review-genres.
 
     The guesses of dj-librarian do not count.

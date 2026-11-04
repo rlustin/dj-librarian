@@ -69,8 +69,9 @@ def run(args) -> None:
                 print(f"    {role:6s} {_short_path(c.track.path)}  ·  {c.plays} plays, {c.own_cues} cues of yours  ·  "
                       f"{', '.join(c.playlists) or 'no playlist'}")
             rows.append({"track": track_name(g.keeper.track), "role": role,
-                         "reason": g.reason if role == "keep" else "", "plays": c.plays, "your_cues": c.own_cues, "genre": c.genre or "",
-                         "playlists": "; ".join(c.playlists), "id": c.track.id, "path": c.track.path})
+                         "reason": g.reason if role == "keep" else "", "plays": c.plays, "your_cues": c.own_cues,
+                         "genre": c.genre or "", "playlists": "; ".join(c.playlists),
+                         "id": c.track.id, "path": c.track.path})
         if shown and g.cues:
             print(f"    cues: {len(g.cues)} cues of yours move to the kept copy")
         if shown and g.genre:

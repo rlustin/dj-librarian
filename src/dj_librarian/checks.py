@@ -123,7 +123,9 @@ def run(tracks: list[Track], analysis: dict[str, dict], yours: dict[str, str], c
     return report
 
 
-def crate(tracks: list[Track], analysis: dict[str, dict], yours: dict[str, str], genre: str) -> list[tuple[Track, float]]:
+def crate(
+    tracks: list[Track], analysis: dict[str, dict], yours: dict[str, str], genre: str
+) -> list[tuple[Track, float]]:
     """The tracks that you gave this genre, from the most typical sound to the least typical.
 
     Typical: near the average sound of the genre (cosine similarity to the mean fingerprint).

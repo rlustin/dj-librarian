@@ -150,4 +150,5 @@ def _print_claude_self_check(checked, results, yours) -> None:
     for p in checked:
         if p not in right:
             a = results[p.track.id]
-            print(f"  {p.track.artist} - {p.track.title}: {yours[p.track.id]} -> {a['genre']} ({a['confidence']}): {a['reason']}")
+            print(f"  {p.track.artist} - {p.track.title}: {yours[p.track.id]} -> {a['genre']} "
+                  f"({a['confidence']}): {a['reason']}")

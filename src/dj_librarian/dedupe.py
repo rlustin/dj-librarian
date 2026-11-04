@@ -282,7 +282,10 @@ def apply(db: MasterDatabase, groups: list[Group]) -> Counter:
 
 
 def _make_room(db: MasterDatabase, content_id: str, kind: int) -> None:
-    """Delete a cue that dj-librarian generated in this hot cue slot. `find_moved` does not move a cue onto a cue of yours."""
+    """Delete a cue that dj-librarian generated in this hot cue slot.
+
+    `find_moved` does not move a cue onto a cue of yours.
+    """
     if kind:
         for cue in db.get_cue(ContentID=content_id, Kind=kind).all():
             db.delete(cue)
