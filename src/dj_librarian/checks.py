@@ -64,21 +64,6 @@ def save_outlier_reviewed(track_id: str, genre: str) -> None:
     store.write_json(store.OUTLIERS_REVIEWED, load_outliers_reviewed() | {track_id: genre})
 
 
-def your_genres(tracks: list[Track], guessed: dict[str, str], decisions: dict[str, str | None]) -> dict[str, str]:
-    """content ID -> the genre that you gave: in rekordbox, or in review-genres.
-
-    The guesses of dj-librarian do not count.
-    """
-    genres = {}
-    for t in tracks:
-        if decisions.get(t.id) is not None:
-            if decisions[t.id]:
-                genres[t.id] = decisions[t.id]
-        elif t.genre and guessed.get(t.id) != t.genre:
-            genres[t.id] = t.genre
-    return genres
-
-
 def run(tracks: list[Track], analysis: dict[str, dict], yours: dict[str, str], current: dict[str, str]) -> Report:
     """`yours`: the genres that you gave. `current`: the genre of each track after `apply`, guesses included."""
     report = Report()

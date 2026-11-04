@@ -81,33 +81,40 @@ class GenreGuess:
     neighbours: list[tuple[str, str, float]] = field(default_factory=list)  # (track ID, genre, similarity)
 
 
-def guess_genres(
-    tracks: list[Track],
-    analysis: dict[str, dict],
-    guessed: dict[str, str] | None = None,
-    approved: dict[str, str] | None = None,
-) -> dict[str, GenreGuess]:
+def similarity_rows(embeddings: np.ndarray, columns: np.ndarray):
+    """(row, similarities of the row to `columns`), for each row of `embeddings`.
+
+    A block of rows at a time: the full matrix of a library of 20,000 tracks needs gigabytes.
+    """
+    for start in range(0, len(embeddings), BLOCK):
+        yield from enumerate(embeddings[start:start + BLOCK] @ columns.T, start)
+
+
+def similar_pairs(embeddings: np.ndarray, threshold: float) -> list[tuple[int, int, float]]:
+    """(x, y, similarity) with x < y, for the pairs of rows above `threshold`."""
+    pairs = []
+    for start in range(0, len(embeddings), BLOCK):
+        block = embeddings[start:start + BLOCK] @ embeddings[start:].T
+        for r, c in zip(*np.where(np.triu(block, 1) > threshold)):
+            pairs.append((start + int(r), start + int(c), float(block[r, c])))
+    return pairs
+
+
+def guess_genres(tracks: list[Track], analysis: dict[str, dict], yours: dict[str, str]) -> dict[str, GenreGuess]:
     """k-nearest-neighbours vote among the tracks you tagged yourself, by audio embedding similarity.
 
-    `guessed` holds the genres that dj-librarian wrote. Do not learn from them, or errors add up.
-    `approved` holds the genre changes that you approved in review. Learn from them before
-    `apply` writes them. Then the guesses do not change again after `apply`.
+    `yours` (see proposals.your_genres) leaves out the genres that dj-librarian guessed, or errors add up.
+    It includes your answers in review-genres. Then the guesses do not change again after `apply`.
     """
-    guessed, approved = guessed or {}, approved or {}
     ids = [t.id for t in tracks if t.id in analysis]
-    by_id = {t.id: t for t in tracks}
     embeddings = np.stack([analysis[i]["embedding"] for i in ids])
     embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
-    genre = lambda t: approved.get(t.id, t.genre)
-    yours = lambda t: bool(approved[t.id]) if t.id in approved else bool(t.genre and guessed.get(t.id) != t.genre)
-    labeled = [n for n, i in enumerate(ids) if yours(by_id[i])]
-    labels = [genre(by_id[ids[n]]) for n in labeled]
-    similarity = embeddings @ embeddings[labeled].T if labeled else np.zeros((len(ids), 0))
-
+    labeled = [n for n, i in enumerate(ids) if i in yours]
+    labels = [yours[ids[n]] for n in labeled]
     guesses = {}
-    for row, track_id in enumerate(ids):
-        sims = similarity[row].copy()
-        if yours(by_id[track_id]):  # Leave-one-out: a track cannot vote for itself
+    for row, sims in similarity_rows(embeddings, embeddings[labeled]):
+        track_id = ids[row]
+        if track_id in yours:  # Leave-one-out: a track cannot vote for itself
             sims[labeled.index(row)] = -np.inf
         votes: dict[str, float] = {}
         nearest = [n for n in np.argsort(sims)[::-1][:KNN_K] if np.isfinite(sims[n])]

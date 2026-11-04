@@ -161,7 +161,7 @@ def _load_checks(db, steps: Steps):
     analysis = Cache().all()
     tracks = [t for t in library.load_tracks(db, with_structure=False) if t.id in analysis]
     decisions = proposals.load_genre_decisions()
-    yours = checks.your_genres(tracks, proposals.load_guessed_genres(), decisions)
+    yours = proposals.your_genres(tracks, proposals.load_guessed_genres(), decisions)
     current = {t.id: g for t in tracks if (g := t.genre if decisions.get(t.id) is None else decisions[t.id])}
     steps.step("Compare the tracks")
     report = checks.run(tracks, analysis, yours, current)
@@ -276,7 +276,7 @@ def _write_rows(path: str, rows: list[dict]) -> None:
 
 
 def cmd_dedupe(args) -> None:
-    from dj_librarian import checks, dedupe, writer
+    from dj_librarian import dedupe, writer
 
     steps = Steps()
     steps.step("Load library and analysis")
@@ -284,7 +284,7 @@ def cmd_dedupe(args) -> None:
     analysis = Cache().all()
     tracks = library.load_tracks(db, with_structure=False)
     decisions = proposals.load_genre_decisions()
-    yours = checks.your_genres(tracks, proposals.load_guessed_genres(), decisions)
+    yours = proposals.your_genres(tracks, proposals.load_guessed_genres(), decisions)
     generated = proposals.load_generated_cues()
     steps.step("Find the copies")
     groups, other_length = dedupe.find(db, tracks, analysis, yours, generated)
@@ -548,11 +548,10 @@ def cmd_ask_claude(args) -> None:
     by_id = {t.id: t for t in context.tracks}
     guessed = proposals.load_guessed_genres()
     decisions = proposals.load_genre_decisions()
-    approved = {i: g for i, g in decisions.items() if g is not None}
-    yours = lambda t: approved[t.id] if t.id in approved else (t.genre if guessed.get(t.id) != t.genre else None)
-    vocab = claude_genres.vocabulary(context.tracks, yours)
+    yours = proposals.your_genres(context.tracks, guessed, decisions)
+    vocab = claude_genres.vocabulary(yours)
     peers = claude_genres.Peers(context.tracks, yours)
-    tags = sum(bool(yours(t)) for t in context.tracks)
+    tags = len(yours)
     steps.step("Find the Bandcamp links in the comments and the backups")
     urls = claude_genres.source_urls(context.tracks)
     steps.done()
@@ -561,7 +560,7 @@ def cmd_ask_claude(args) -> None:
     outliers: dict[str, str] = {}
     if args.self_check:
         # Tracks you tagged yourself, genre hidden: how often does Claude agree with you?
-        tagged = [p for p in selected if yours(p.track)]
+        tagged = [p for p in selected if p.track.id in yours]
         todo = random.Random(0).sample(tagged, min(args.self_check, len(tagged)))
     else:
         from dj_librarian import checks
@@ -671,7 +670,7 @@ def _batch_label(batch: list[proposals.Proposal]) -> str:
 def _print_claude_self_check(checked, results, yours) -> None:
     if not checked:
         return
-    right = [p for p in checked if results[p.track.id]["genre"].lower() == yours(p.track).lower()]
+    right = [p for p in checked if results[p.track.id]["genre"].lower() == yours[p.track.id].lower()]
     print(f"Claude matched your genre on {len(right)}/{len(checked)} tracks ({100 * len(right) / len(checked):.0f}%)")
     by_confidence = Counter((results[p.track.id]["confidence"], p in right) for p in checked)
     for level in ("high", "medium", "low"):
@@ -682,7 +681,7 @@ def _print_claude_self_check(checked, results, yours) -> None:
     for p in checked:
         if p not in right:
             a = results[p.track.id]
-            print(f"  {p.track.artist} - {p.track.title}: {yours(p.track)} -> {a['genre']} ({a['confidence']}): {a['reason']}")
+            print(f"  {p.track.artist} - {p.track.title}: {yours[p.track.id]} -> {a['genre']} ({a['confidence']}): {a['reason']}")
 
 
 def _preview_start(db, p: proposals.Proposal) -> float:

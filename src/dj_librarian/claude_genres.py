@@ -116,8 +116,8 @@ def source_urls(tracks: list[Track]) -> dict[str, str]:
     return record["urls"] | current
 
 
-def vocabulary(tracks: list[Track], genre_of) -> list[tuple[str, int]]:
-    return Counter(g for t in tracks if (g := genre_of(t))).most_common(VOCABULARY_SIZE)
+def vocabulary(yours: dict[str, str]) -> list[tuple[str, int]]:
+    return Counter(yours.values()).most_common(VOCABULARY_SIZE)
 
 
 class Peers:
@@ -125,10 +125,10 @@ class Peers:
 
     FIELDS = (("album", "release"), ("artist", "artist"), ("label", "label"))
 
-    def __init__(self, tracks: list[Track], genre_of) -> None:
+    def __init__(self, tracks: list[Track], yours: dict[str, str]) -> None:
         self.index: dict[tuple[str, str], dict[str, str]] = {}
         for t in tracks:
-            if genre := genre_of(t):
+            if genre := yours.get(t.id):
                 for field, _ in self.FIELDS:
                     if value := (getattr(t, field) or "").strip().lower():
                         self.index.setdefault((field, value), {})[t.id] = genre

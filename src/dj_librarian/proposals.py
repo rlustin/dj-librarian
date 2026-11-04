@@ -65,6 +65,21 @@ def save_guessed_genres(genres: dict[str, str]) -> None:
     store.write_json(store.GUESSED_GENRES, genres)
 
 
+def your_genres(tracks: list[library.Track], guessed: dict[str, str], decisions: dict[str, str | None]) -> dict[str, str]:
+    """content ID -> the genre that you gave: in rekordbox, or in review-genres.
+
+    The guesses of dj-librarian do not count.
+    """
+    genres = {}
+    for t in tracks:
+        if decisions.get(t.id) is not None:
+            if decisions[t.id]:
+                genres[t.id] = decisions[t.id]
+        elif t.genre and guessed.get(t.id) != t.genre:
+            genres[t.id] = t.genre
+    return genres
+
+
 def build(
     db, playlist: str | None = None, track_ids: set[str] | None = None, with_cues: bool = True, steps=None
 ) -> tuple[list[Proposal], Context]:
@@ -89,7 +104,7 @@ def build(
     decisions = load_genre_decisions()
     claude = load_answers()
     approved = {i: g for i, g in decisions.items() if g is not None}
-    genres = tagging.guess_genres(everything, analysis, guessed, approved)
+    genres = tagging.guess_genres(everything, analysis, your_genres(everything, guessed, decisions))
     moods = tagging.guess_moods(ids, analysis)
     energy = tagging.guess_energy(ids, analysis)
     generated = load_generated_cues()
