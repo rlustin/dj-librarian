@@ -52,17 +52,6 @@ class Cache:
         )
         self.conn.commit()
 
-    def missing(self, key: str) -> list[tuple[str, str]]:
-        """(content ID, path) of cached results without this field, for analysis added later."""
-        rows = self.conn.execute("SELECT content_id, path, data FROM analysis WHERE version = ?", (ANALYSIS_VERSION,))
-        return [(content_id, path) for content_id, path, data in rows if key not in json.loads(data)]
-
-    def set_field(self, content_id: str, key: str, value) -> None:
-        (data,) = self.conn.execute("SELECT data FROM analysis WHERE content_id = ?", (content_id,)).fetchone()
-        data = json.loads(data) | {key: value}
-        self.conn.execute("UPDATE analysis SET data = ? WHERE content_id = ?", (json.dumps(data), content_id))
-        self.conn.commit()
-
     def structures(self) -> dict[str, tuple[str, dict | None]]:
         rows = self.conn.execute("SELECT content_id, files_key, data FROM structure")
         return {content_id: (key, json.loads(data)) for content_id, key, data in rows}

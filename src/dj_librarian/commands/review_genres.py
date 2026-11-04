@@ -33,13 +33,14 @@ def run(args) -> None:
         _, _, _, report = load_checks(db, Steps())
         outliers = {o.track.id: o for o in report.outliers
                     if not args.genre or o.genre.lower() == args.genre.lower()}
-        # Earlier answers do not count: most come from a suggestion, before this check existed
+        # An answer to a genre suggestion does not count. Only an answer to this check does.
         reviewed = checks.load_outliers_reviewed()
         reviews = [p for p in selected if p.track.id in outliers
                    and reviewed.get(p.track.id) != outliers[p.track.id].genre]
         order = {i: n for n, i in enumerate(outliers)}
         reviews.sort(key=lambda p: order[p.track.id])
-    # Claude's answers first, most confident first: high-confidence answers matched your tags 9 times in 10
+    # Claude's answers first, most confident first.
+    # On one library, high-confidence answers matched the tags 9 times in 10.
     rank = {"high": 0, "medium": 1, "low": 2}
     suggestions = sorted(
         (p for p in selected if p.genre_pending and p.genre_action == "suggest" and not args.outliers),
@@ -77,7 +78,8 @@ def run(args) -> None:
             if p.claude:
                 new = ", new genre" if p.claude["is_new_genre"] else ""
                 agrees = ", same as yours" if outlier and p.claude["genre"] == current_genre else ""
-                print(f"    c. {p.claude['genre']}  (Claude, {p.claude['confidence']}{new}{agrees}): {p.claude['reason']}")
+                print(f"    c. {p.claude['genre']}  (Claude, {p.claude['confidence']}{new}{agrees}): "
+                      f"{p.claude['reason']}")
                 if p.claude["alternatives"]:
                     print(f"       also possible: {', '.join(p.claude['alternatives'])}")
             for k, (genre, share) in enumerate(candidates, 1):

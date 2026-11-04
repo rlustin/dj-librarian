@@ -78,7 +78,7 @@ def restore(backup_dir: Path, db_path: Path) -> Path:
     backup_analysis(current, [Path(p) for p in originals if Path(p).exists()])
     for name in DB_FILES:
         if name == PLAYLISTS_XML and not (backup_dir / name).exists():
-            continue  # Backups from before this file was in them
+            continue  # Keep the current file if the backup has none
         (db_path.parent / name).unlink(missing_ok=True)
         if (backup_dir / name).exists():
             shutil.copy2(backup_dir / name, db_path.parent / name)

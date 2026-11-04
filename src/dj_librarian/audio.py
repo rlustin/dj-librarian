@@ -161,11 +161,6 @@ def audio_start(audio: np.ndarray) -> float:
     return float(np.argmax(opening >= opening.max() * AUDIO_START_THRESHOLD) / SR)
 
 
-def find_audio_start(path: str) -> float:
-    """Same as `audio_start`, but decode only the first seconds of the file."""
-    return audio_start(es.EasyLoader(filename=path, sampleRate=SR, endTime=AUDIO_START_WINDOW_S)())
-
-
 def _envelopes(audio: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Loudness over time (dB), full band and sub/kick band (20-150 Hz), one value per 100 ms."""
     frame_size = 4096

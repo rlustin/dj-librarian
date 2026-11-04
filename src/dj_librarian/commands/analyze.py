@@ -58,7 +58,6 @@ def run(args) -> None:
     if args.limit is not None:
         todo = todo[: args.limit]
     print(f"{len(tracks)} tracks, {len(missing)} files not found, {len(todo)} to analyse")
-    _fill_audio_start(cache, {t.id for t in tracks}, args.workers)
     if not todo:
         return
 
@@ -84,21 +83,3 @@ def run(args) -> None:
     for path, error in failures:
         print(f"failed: {path}: {error}", file=sys.stderr)
 
-
-def _fill_audio_start(cache: Cache, track_ids: set[str], workers: int) -> None:
-    """For results from before the audio start detection: decode only the first seconds of each file."""
-    from dj_librarian.audio import find_audio_start
-
-    todo = [(i, p) for i, p in cache.missing("audio_start") if i in track_ids and library.on_disk(p)]
-    if not todo:
-        return
-    print(f"find where the sound starts for {len(todo)} analysed tracks")
-    with ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(find_audio_start, library.on_disk(p)): i for i, p in todo}
-        for done, future in enumerate(as_completed(futures), 1):
-            try:
-                cache.set_field(futures[future], "audio_start", future.result())
-            except Exception as e:  # noqa: BLE001 - one bad file must not stop the others
-                print(f"\nfailed: {futures[future]}: {e}", file=sys.stderr)
-            print(f"\r{done}/{len(todo)}", end="", flush=True)
-    print()

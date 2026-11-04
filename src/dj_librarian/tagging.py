@@ -61,12 +61,12 @@ def compare_key(rekordbox: str | None, ours: str | None) -> str:
 # --- Genre ----------------------------------------------------------------------------
 
 KNN_K = 10
-# On the 650 tracks that you tagged, guesses at >= 0.5 confidence matched your tag 86% of the time.
+# On a library with 650 tagged tracks, guesses at >= 0.5 confidence matched the tag 86% of the time.
 # The Discogs model matched only 13% (other taxonomy, no Amapiano/Gqom/UK Funky).
 # Thus dj-librarian shows it as a hint and never writes it.
 KNN_MIN_CONFIDENCE = 0.5
 # Below KNN_MIN_CONFIDENCE but at least this: review-genres shows the top candidates.
-# On your tags, the top 3 had the right genre for 63% of these tracks.
+# On the same library, the top 3 had the right genre for 63% of these tracks.
 NEAR_MISS_CONFIDENCE = 0.4
 REVIEW_CANDIDATES = 3
 BLOCK = 256  # rows of the similarity matrix at a time
