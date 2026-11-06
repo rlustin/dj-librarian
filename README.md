@@ -73,6 +73,20 @@ Other commands:
 
 Use `--help` on each command for its options. Most commands accept `--playlist` to work on one playlist.
 
+### review-genres
+
+Each track plays from its full-energy part. Press one key, without Enter:
+
+| Key | Action |
+|-----|--------|
+| `1`-`3`, `c` | pick a genre that dj-librarian or Claude proposes |
+| `/` | type a genre. Tab completes your genre names. |
+| `k` | keep the current genre |
+| `a`, then a genre | give the genre to all open tracks of the same release |
+| `s` / `b` | skip the track / go back to the previous track and change the answer |
+| `←` / `→`, space, `r` | move 30 seconds, pause, play again from the start |
+| `q` | stop. dj-librarian saves each answer at once, so you can continue later. |
+
 ### How dj-librarian uses your genres
 
 dj-librarian learns only from the genres that you gave: in rekordbox, or in `review-genres`.
