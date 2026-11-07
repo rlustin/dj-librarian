@@ -1,7 +1,6 @@
 """SQLite cache of raw audio analysis, keyed by rekordbox content ID."""
 
 import json
-import os
 import sqlite3
 import unicodedata
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from dj_librarian.audio import ANALYSIS_VERSION
+from dj_librarian.library import AudioFile
 from dj_librarian.store import ANALYSIS_CACHE
 
 ARRAYS = {"embedding": np.float32, "env_full": np.float16, "env_low": np.float16}
@@ -32,27 +32,24 @@ class Cache:
             "CREATE TABLE IF NOT EXISTS grid_check (content_id TEXT PRIMARY KEY, files_key TEXT, data TEXT)"
         )
 
-    @staticmethod
-    def fingerprint(path: str) -> tuple[int, float]:
-        stat = os.stat(path)
-        return stat.st_size, stat.st_mtime
-
-    def is_fresh(self, content_id: str, path: str) -> bool:
+    def is_fresh(self, content_id: str, file: AudioFile) -> bool:
         row = self.conn.execute(
             "SELECT path, size, mtime, version FROM analysis WHERE content_id = ?", (content_id,)
         ).fetchone()
         if row is None:
             return False
         # The same file can come back with its accents in another Unicode form (see library.on_disk)
-        same_path = unicodedata.normalize("NFC", row[0]) == unicodedata.normalize("NFC", path)
-        return same_path and row[1:] == (*self.fingerprint(path), ANALYSIS_VERSION)
+        same_path = unicodedata.normalize("NFC", row[0]) == unicodedata.normalize("NFC", file.path)
+        return same_path and row[1:] == (file.size, file.mtime, ANALYSIS_VERSION)
 
-    def put(self, content_id: str, path: str, result: dict) -> None:
+    def put(self, content_id: str, file: AudioFile, result: dict) -> None:
+        """`file`: the size and date before the analysis. If the file changes during the analysis, the next run
+        analyses it again."""
         data = {k: v for k, v in result.items() if k not in ARRAYS}
         blobs = [np.asarray(result[k], dtype=t).tobytes() for k, t in ARRAYS.items()]
         self.conn.execute(
             "INSERT OR REPLACE INTO analysis VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (content_id, path, *self.fingerprint(path), ANALYSIS_VERSION, json.dumps(data), *blobs),
+            (content_id, *file, ANALYSIS_VERSION, json.dumps(data), *blobs),
         )
         self.conn.commit()
 

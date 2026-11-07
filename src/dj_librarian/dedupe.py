@@ -7,7 +7,6 @@ and you remove them in rekordbox (Remove from Collection). Then rekordbox does i
 import re
 import unicodedata
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -15,7 +14,7 @@ import numpy as np
 from pyrekordbox.masterdb import models
 
 from dj_librarian.checks import DUPLICATE_SIMILARITY
-from dj_librarian.library import MasterDatabase, Track, on_disk
+from dj_librarian.library import MasterDatabase, Track, find_files
 from dj_librarian.tagging import similar_pairs
 
 DUPLICATES_PLAYLIST = "dj-librarian duplicates to remove"
@@ -50,11 +49,10 @@ class Group:
     cues: list[str] = field(default_factory=list)  # UUIDs of your cues to move to the kept copy (same file only)
 
 
-def missing_files(tracks: list[Track]) -> set[str]:
+def missing_files(tracks: list[Track], steps=None) -> set[str]:
     """The IDs of the entries whose file is not on the disk."""
-    with ThreadPoolExecutor(16) as pool:  # A network share answers slowly, but in parallel
-        found = pool.map(lambda t: on_disk(t.path) is not None, tracks)
-        return {t.id for t, ok in zip(tracks, found) if not ok}
+    found = find_files(tracks, steps)
+    return {t.id for t in tracks if t.id not in found}
 
 
 def find(

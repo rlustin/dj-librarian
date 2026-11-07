@@ -4,8 +4,9 @@ import logging
 import os
 import unicodedata
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 import numpy as np
 
@@ -158,6 +159,35 @@ def _load_structures(db: MasterDatabase, pairs: list, steps=None) -> None:
             track.beat_length = data["beat_length"]
             track.downbeats = np.asarray(data["downbeats"])
             track.phrases = [Phrase(*phrase) for phrase in data["phrases"]]
+
+
+class AudioFile(NamedTuple):
+    path: str  # as the disk spells it (see on_disk)
+    size: int
+    mtime: float
+
+
+def find_files(tracks: list[Track], steps=None) -> dict[str, AudioFile]:
+    """content ID -> the audio file, for the tracks whose file is on the disk. `steps` (progress.Steps) shows
+    the count."""
+    found = {}
+    # A network share can take one second for each file, but it answers many requests in parallel
+    with ThreadPoolExecutor(16) as pool:
+        for n, (track, file) in enumerate(zip(tracks, pool.map(_find, tracks)), 1):
+            if file:
+                found[track.id] = file
+            if steps:
+                steps.count(n, len(tracks))
+    return found
+
+
+def _find(track: Track) -> AudioFile | None:
+    path = on_disk(track.path)
+    try:
+        stat = os.stat(path) if path else None
+    except OSError:  # The file moved after on_disk, or the network share failed for a moment
+        return None
+    return AudioFile(path, stat.st_size, stat.st_mtime) if stat else None
 
 
 def on_disk(path: str) -> str | None:

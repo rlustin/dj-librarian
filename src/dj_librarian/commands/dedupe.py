@@ -26,7 +26,7 @@ def run(args) -> None:
     yours = proposals.your_genres(tracks, proposals.load_guessed_genres(), decisions)
     generated = proposals.load_generated_cues()
     steps.step("Find the missing files")
-    missing = dedupe.missing_files(tracks)
+    missing = dedupe.missing_files(tracks, steps)
     moved, alone = dedupe.find_moved(db, tracks, yours, generated, missing)
     steps.step("Find the copies")
     groups, other_length = dedupe.find(db, tracks, analysis, yours, generated, missing)

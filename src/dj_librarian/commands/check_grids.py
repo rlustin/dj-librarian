@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -47,7 +47,7 @@ def add_parser(sub) -> None:
 class Item:
     track: library.Track
     dat: Path
-    audio: str
+    audio: library.AudioFile
     key: str  # changes when rekordbox writes a new grid, or when the audio file changes
     result: dict
     verdict: str
@@ -56,7 +56,7 @@ class Item:
 
     @property
     def extension(self) -> str:
-        return Path(self.audio).suffix.lower()
+        return Path(self.audio.path).suffix.lower()
 
 
 def run(args) -> None:
@@ -76,9 +76,8 @@ def run(args) -> None:
         _report(items, decisions, args)
 
 
-def _key(dat: Path, audio: str) -> str:
-    stat = os.stat(audio)
-    return f"{beats.CHECK_VERSION}:{os.path.getmtime(dat)}:{stat.st_size}:{stat.st_mtime}"
+def _key(dat: Path, audio: library.AudioFile) -> str:
+    return f"{beats.CHECK_VERSION}:{os.path.getmtime(dat)}:{audio.size}:{audio.mtime}"
 
 
 def _check_one(audio: str, dat: str) -> dict:
@@ -92,12 +91,11 @@ def _items(db, tracks: list[library.Track], workers: int) -> list[Item]:
     steps = Steps()
     steps.step("Find the audio files and the rekordbox grids")
     contents = {c.ID: c for c in db.get_content().all()}
-    with ThreadPoolExecutor(16) as pool:  # A network share answers slowly, but in parallel
-        audio = dict(zip((t.id for t in tracks), pool.map(lambda t: library.on_disk(t.path), tracks)))
+    audio = library.find_files(tracks, steps)
     found = []
     for t in tracks:
         dat = db.get_anlz_paths(contents[t.id]).get("DAT")
-        if dat and audio[t.id]:
+        if dat and t.id in audio:
             found.append((t, Path(dat), audio[t.id], _key(Path(dat), audio[t.id])))
     cache = Cache()
     cached = cache.grid_checks()
@@ -114,22 +112,22 @@ def _items(db, tracks: list[library.Track], workers: int) -> list[Item]:
     offsets = beats.calibrate({i: r for i, (_, r) in cached.items()}, extensions)
     medians = _genre_medians(db)
     items = []
-    for t, dat, path, key in found:
+    for t, dat, audio, key in found:
         if t.id not in cached or cached[t.id][0] != key:
             continue  # The check failed
         result = cached[t.id][1]
         verdict, better = beats.verdict(result)
         if verdict == "wrong tempo" and medians.get(t.id):
             better = beats.nearest_family(result, medians[t.id])  # The tempo level of the genre
-        offset = beats.offset_for(offsets, Path(path).suffix.lower())
-        items.append(Item(t, dat, path, key, result, verdict, better, offset))
+        offset = beats.offset_for(offsets, Path(audio.path).suffix.lower())
+        items.append(Item(t, dat, audio, key, result, verdict, better, offset))
     return items
 
 
 def _run_checks(cache: Cache, todo: list, workers: int) -> None:
     started, failures = time.time(), []
     with ProcessPoolExecutor(max_workers=workers, initializer=quiet_stderr) as pool:
-        futures = {pool.submit(_check_one, path, str(dat)): (t, key) for t, dat, path, key in todo}
+        futures = {pool.submit(_check_one, audio.path, str(dat)): (t, key) for t, dat, audio, key in todo}
         for done, future in enumerate(as_completed(futures), 1):
             t, key = futures[future]
             try:
@@ -248,7 +246,7 @@ class GridReview:
         item = self.items[index]
         clear()
         print(f"[{index + 1}/{len(self.items)}] {track_name(item.track)}: load the audio...", flush=True)
-        audio = beats.load(item.audio)
+        audio = beats.load(item.audio.path)
         duration = len(audio) / beats.SR
         self.audio, self.bass = audio, waveform.low_pass(audio, beats.SR)
         self.levels = waveform.scale(self.audio), waveform.scale(self.bass)
@@ -461,7 +459,7 @@ def _columns() -> int:
     return os.get_terminal_size().columns if sys.stdout.isatty() else 100
 
 
-def mark_written(files: dict[str, tuple[Path, str]]) -> None:
+def mark_written(files: dict[str, tuple[Path, library.AudioFile]]) -> None:
     """Your answer for the grids that dj-librarian wrote: keep them. If a grid moves the beat away from the loudest
     hits (for example, onto the kick), the next check does not report it again."""
     decisions = store.read_json(store.GRID_DECISIONS, {})

@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from dj_librarian import library
 from dj_librarian.cache import Cache
 from dj_librarian.commands.common import quiet_stderr
+from dj_librarian.progress import Steps
 from dj_librarian.store import MODELS_DIR
 
 _analyzer = None
@@ -50,10 +51,14 @@ def run(args) -> None:
 
     download_models()
     cache = Cache()
+    steps = Steps()
+    steps.step("Load library")
     tracks = library.load_tracks(library.open_db(), args.playlist, with_structure=False)
-    files = {t.id: library.on_disk(t.path) for t in tracks}
-    missing = [t for t in tracks if not files[t.id]]
-    todo = [t for t in tracks if files[t.id] and not cache.is_fresh(t.id, files[t.id])]
+    steps.step("Find the audio files")
+    files = library.find_files(tracks, steps)
+    steps.done()
+    missing = [t for t in tracks if t.id not in files]
+    todo = [t for t in tracks if t.id in files and not cache.is_fresh(t.id, files[t.id])]
     if args.limit is not None:
         todo = todo[: args.limit]
     print(f"{len(tracks)} tracks, {len(missing)} files not found, {len(todo)} to analyse")
@@ -62,7 +67,7 @@ def run(args) -> None:
 
     started, failures = time.time(), []
     with ProcessPoolExecutor(max_workers=args.workers, initializer=_init_worker) as pool:
-        futures = [pool.submit(_analyze, t.id, files[t.id]) for t in todo]
+        futures = [pool.submit(_analyze, t.id, files[t.id].path) for t in todo]
         for done, future in enumerate(as_completed(futures), 1):
             try:
                 track_id, path, result, error = future.result()
@@ -73,7 +78,7 @@ def run(args) -> None:
             if error:
                 failures.append((path, error))
             else:
-                cache.put(track_id, path, result)
+                cache.put(track_id, files[track_id], result)
             elapsed = time.time() - started
             eta = elapsed / done * (len(todo) - done)
             print(f"\r{done}/{len(todo)}  {elapsed / 60:.0f} min elapsed, ~{eta / 60:.0f} min left  ",

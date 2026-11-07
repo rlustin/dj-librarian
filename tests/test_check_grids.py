@@ -1,7 +1,9 @@
 import pytest
 
-from dj_librarian import beats
+from dj_librarian import beats, library
 from dj_librarian.commands.check_grids import _other_level
+
+from helpers import track
 
 
 def test_other_level_uses_the_analysis():
@@ -29,8 +31,9 @@ def test_a_written_grid_is_not_reported_again(tmp_path):
     audio.write_bytes(b"audio")
     store.write_json(store.GRID_DECISIONS, {"1": {"key": "old", "bpm": 95.0, "phase": 0.1, "downbeat": 0}})
 
-    mark_written({"1": (dat, str(audio))})
+    file = library.find_files([track("1", path=str(audio))])["1"]
+    mark_written({"1": (dat, file)})
 
     decision = store.read_json(store.GRID_DECISIONS, {})["1"]
-    assert decision["key"] == _key(dat, str(audio)) and decision["keep"]
+    assert decision["key"] == _key(dat, file) and decision["keep"]
     assert _answer(decision) == "written by dj-librarian"
