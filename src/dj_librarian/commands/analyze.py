@@ -1,12 +1,12 @@
 """Analyse the audio files in parallel processes, and keep the results in the cache."""
 
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from dj_librarian import library
 from dj_librarian.cache import Cache
+from dj_librarian.commands.common import quiet_stderr
 from dj_librarian.store import MODELS_DIR
 
 _analyzer = None
@@ -27,8 +27,7 @@ def add_parser(sub) -> None:
 
 def _init_worker() -> None:
     global _analyzer, _failed
-    # TensorFlow writes start-up logs from C++, also with TF_CPP_MIN_LOG_LEVEL. Errors come back as results.
-    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
+    quiet_stderr()  # Errors come back as results
     from dj_librarian.audio import Analyzer
 
     try:

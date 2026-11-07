@@ -1,11 +1,18 @@
 """Helpers that more than one command uses."""
 
 import csv
+import os
+import sys
 from collections import Counter
 
 from dj_librarian import library, proposals, writer
 from dj_librarian.cache import Cache
 from dj_librarian.progress import Steps
+
+
+def quiet_stderr() -> None:
+    """For worker processes: TensorFlow writes start-up logs from C++, also with TF_CPP_MIN_LOG_LEVEL."""
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
 
 
 def track_name(t: library.Track) -> str:

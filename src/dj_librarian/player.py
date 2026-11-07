@@ -1,12 +1,15 @@
 """Play a track in the background (ffplay, no window) during the questions in the terminal."""
 
+import re
 import shutil
 import subprocess
+import threading
 import time
 
 from dj_librarian.library import on_disk
 
 SEEK_SECONDS = 30
+CLOCK = re.compile(rb"\s*(\d+\.\d+) M-A")  # the status line of ffplay starts with its audio clock
 
 
 class Player:
@@ -14,8 +17,9 @@ class Player:
         self.ffplay = shutil.which("ffplay") if enabled else None
         self.process: subprocess.Popen | None = None
         self.path = ""
-        self.offset = self.started_at = 0.0
+        self.offset = 0.0
         self.paused = False
+        self.clock: tuple[float, float] | None = None  # (time in the file, monotonic time) from ffplay
 
     @property
     def available(self) -> bool:
@@ -28,19 +32,33 @@ class Player:
         self.path, self.paused = path or "", False
         if not path:
             return False
-        self.offset, self.started_at = max(start, 0.0), time.monotonic()
+        self.offset, self.clock = max(start, 0.0), None
         self.process = subprocess.Popen(
-            [self.ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", "-ss", f"{self.offset:.2f}", path],
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            [self.ffplay, "-nodisp", "-autoexit", "-stats", "-loglevel", "quiet", "-ss", f"{self.offset:.2f}", path],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         )
+        threading.Thread(target=self._read_clock, args=(self.process,), daemon=True).start()
         return True
+
+    def _read_clock(self, process: subprocess.Popen) -> None:
+        """ffplay starts to play about 0.8 s after its start. Its clock includes the delay of the audio buffer."""
+        rest = b""
+        while chunk := process.stderr.read1(256):
+            *lines, rest = re.split(rb"[\r\n]", rest + chunk)
+            for line in lines:
+                if (match := CLOCK.match(line)) and process is self.process:
+                    self.clock = float(match[1]), time.monotonic()
 
     @property
     def ended(self) -> bool:
         return self.process is not None and self.process.poll() is not None
 
     def position(self) -> float:
-        return self.offset if self.paused else self.offset + time.monotonic() - self.started_at
+        """The time in the file that you hear. Before the sound starts, the start position."""
+        if self.paused or not self.clock:
+            return self.offset
+        played, at = self.clock
+        return played if self.ended else played + time.monotonic() - at
 
     def seek(self, delta: float) -> None:
         if self.path:

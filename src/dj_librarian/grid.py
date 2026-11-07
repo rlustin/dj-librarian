@@ -1,4 +1,4 @@
-"""Double the BPM of tracks that rekordbox analysed at half tempo.
+"""Change the beat grid of tracks: double it, or replace it with a grid that fits the audio.
 
 dj-librarian changes the BPM in master.db and the beat grid in the analysis files (DAT and EXT).
 The cues stay in place, because rekordbox stores them in milliseconds.
@@ -7,6 +7,7 @@ The cues stay in place, because rekordbox stores them in milliseconds.
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from construct import Container, ListContainer
 from pyrekordbox import AnlzFile
 
@@ -22,23 +23,25 @@ class GridError(Exception):
 @dataclass
 class Change:
     track: Track
-    genre: str
-    median: float
     dat: Path
     ext: Path
     dat_data: bytes  # the new file contents
     ext_data: bytes
+    bpm: int  # x 100, as in master.db
 
 
-def prepare(db: MasterDatabase, track: Track, genre: str, median: float) -> Change:
-    """Make the new analysis files in memory. Raise GridError if the track is not safe to change."""
+def _open(db: MasterDatabase, track: Track):
     content = db.get_content(ID=track.id)
     paths = db.get_anlz_paths(content)
     if not paths.get("DAT") or not paths.get("EXT"):
         raise GridError("no analysis files")
     dat, ext = Path(paths["DAT"]), Path(paths["EXT"])
-    dat_file, ext_file = _parse_exact(dat), _parse_exact(ext)
+    return content, dat, ext, _parse_exact(dat), _parse_exact(ext)
 
+
+def prepare_double(db: MasterDatabase, track: Track) -> Change:
+    """Make the new analysis files in memory. Raise GridError if the track is not safe to change."""
+    content, dat, ext, dat_file, ext_file = _open(db, track)
     entries = dat_file.get_tag("PQTZ").content.entries
     if len(entries) < 2:
         raise GridError("no beat grid")
@@ -51,7 +54,24 @@ def prepare(db: MasterDatabase, track: Track, genre: str, median: float) -> Chan
         _clear_extended_grid(ext_file)
     if "PSSI" in ext_file.tag_types:
         _double_phrases(ext_file)
-    return Change(track, genre, median, dat, ext, dat_file.build(), ext_file.build())
+    return Change(track, dat, ext, dat_file.build(), ext_file.build(), 2 * int(content.BPM))
+
+
+def prepare_retime(db: MasterDatabase, track: Track, bpm: float, beats: list[tuple[int, float]]) -> Change:
+    """Replace the grid with `beats`: (beat number in the bar, time in seconds). The phrases keep their times."""
+    _, dat, ext, dat_file, ext_file = _open(db, track)
+    tag = dat_file.get_tag("PQTZ")
+    old_times = [e.time / 1000 for e in tag.content.entries]
+    if len(old_times) < 2 or len(beats) < 2:
+        raise GridError("no beat grid")
+    tempo = round(bpm * 100)
+    tag.content.entries = ListContainer(Container(beat=n, tempo=tempo, time=round(t * 1000)) for n, t in beats)
+    tag.content.entry_count = len(beats)
+    if "PQT2" in ext_file.tag_types:
+        _clear_extended_grid(ext_file)
+    if "PSSI" in ext_file.tag_types:
+        _move_phrases(ext_file, old_times, [t for _, t in beats])
+    return Change(track, dat, ext, dat_file.build(), ext_file.build(), tempo)
 
 
 def _parse_exact(path: Path) -> AnlzFile:
@@ -102,6 +122,22 @@ def _double_phrases(ext_file: AnlzFile) -> None:
         raise GridError("the track is too long for the phrase format")
 
 
+def _move_phrases(ext_file: AnlzFile, old_times: list[float], new_times: list[float]) -> None:
+    """Each phrase starts at the new beat nearest to the time of its old beat."""
+    new = np.asarray(new_times)
+
+    def moved(beat: int) -> int:
+        time = old_times[min(max(beat, 1), len(old_times)) - 1]
+        return int(np.argmin(np.abs(new - time))) + 1
+
+    content = ext_file.get_tag("PSSI").content
+    for entry in content.entries:
+        for name in PHRASE_BEAT_FIELDS:
+            if entry[name]:
+                entry[name] = moved(entry[name])
+    content.end_beat = moved(content.end_beat)
+
+
 def apply(db: MasterDatabase, changes: list[Change]) -> int:
     """Write the analysis files first, then commit master.db one time. Back up all files before."""
     for change in changes:
@@ -109,7 +145,6 @@ def apply(db: MasterDatabase, changes: list[Change]) -> int:
             temporary = path.with_name(path.name + ".dj-librarian")
             temporary.write_bytes(data)
             temporary.replace(path)
-        content = db.get_content(ID=change.track.id)
-        content.BPM = 2 * int(content.BPM)
+        db.get_content(ID=change.track.id).BPM = change.bpm
     db.commit()
     return len(changes)

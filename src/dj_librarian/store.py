@@ -16,6 +16,7 @@ GENERATED_CUES = HOME / "generated_cues.json"
 OUTLIERS_REVIEWED = HOME / "outliers_reviewed.json"
 CLAUDE_ANSWERS = HOME / "claude_genres.json"
 SOURCE_URLS = HOME / "source_urls.json"
+GRID_DECISIONS = HOME / "grid_decisions.json"
 
 
 def read_json(path: Path, default):

@@ -27,6 +27,10 @@ class Cache:
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS structure (content_id TEXT PRIMARY KEY, files_key TEXT, data TEXT)"
         )
+        # The beat grid check (beats.check), keyed by the grid file and the audio file
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS grid_check (content_id TEXT PRIMARY KEY, files_key TEXT, data TEXT)"
+        )
 
     @staticmethod
     def fingerprint(path: str) -> tuple[int, float]:
@@ -61,6 +65,14 @@ class Cache:
             "INSERT OR REPLACE INTO structure VALUES (?, ?, ?)",
             [(content_id, key, json.dumps(data)) for content_id, (key, data) in entries.items()],
         )
+        self.conn.commit()
+
+    def grid_checks(self) -> dict[str, tuple[str, dict]]:
+        rows = self.conn.execute("SELECT content_id, files_key, data FROM grid_check")
+        return {content_id: (key, json.loads(data)) for content_id, key, data in rows}
+
+    def put_grid_check(self, content_id: str, key: str, result: dict) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO grid_check VALUES (?, ?, ?)", (content_id, key, json.dumps(result)))
         self.conn.commit()
 
     def all(self) -> dict[str, dict]:

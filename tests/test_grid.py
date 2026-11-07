@@ -38,7 +38,7 @@ def files(tmp_path):
 
 
 def test_prepare_doubles_the_grid(files):
-    change = grid.prepare(FakeDb(files, length=60), track(bpm=85.0), "Jungle", 170.0)
+    change = grid.prepare_double(FakeDb(files, length=60), track(bpm=85.0))
 
     entries = AnlzFile.parse(change.dat_data).get_tag("PQTZ").content.entries
     assert len(entries) == 2 * len(BEATS)
@@ -53,7 +53,7 @@ def test_prepare_doubles_the_grid(files):
 
 
 def test_prepare_keeps_the_phrases_at_the_same_time(files):
-    change = grid.prepare(FakeDb(files, length=60), track(bpm=85.0), "Jungle", 170.0)
+    change = grid.prepare_double(FakeDb(files, length=60), track(bpm=85.0))
 
     pssi = AnlzFile.parse(change.ext_data).get_tag("PSSI").content
     assert [e.beat for e in pssi.entries] == [1, 17]  # old beat n -> new beat 2n - 1
@@ -62,7 +62,7 @@ def test_prepare_keeps_the_phrases_at_the_same_time(files):
 
 
 def test_prepare_clears_the_extended_grid(files):
-    change = grid.prepare(FakeDb(files, length=60), track(bpm=85.0), "Jungle", 170.0)
+    change = grid.prepare_double(FakeDb(files, length=60), track(bpm=85.0))
 
     pqt2 = AnlzFile.parse(change.ext_data).get_tag("PQT2")
     assert pqt2.content.entry_count == 0
@@ -71,30 +71,30 @@ def test_prepare_clears_the_extended_grid(files):
 
 def test_prepare_does_not_add_a_beat_after_the_end_of_the_track(files):
     end_seconds = BEATS[-1][2] // 1000 + 1  # The midpoint after the last beat is after this time
-    change = grid.prepare(FakeDb(files, length=end_seconds), track(bpm=85.0), "Jungle", 170.0)
+    change = grid.prepare_double(FakeDb(files, length=end_seconds), track(bpm=85.0))
 
     assert len(AnlzFile.parse(change.dat_data).get_tag("PQTZ").content.entries) == 2 * len(BEATS) - 1
 
 
 def test_prepare_refuses_a_bpm_that_is_not_the_grid_tempo(files):
     with pytest.raises(grid.GridError, match="not the BPM of the beat grid"):
-        grid.prepare(FakeDb(files, bpm=8600), track(bpm=86.0), "Jungle", 170.0)
+        grid.prepare_double(FakeDb(files, bpm=8600), track(bpm=86.0))
 
 
 def test_prepare_refuses_a_grid_with_more_than_one_tempo(files):
     files["DAT"].write_bytes(anlz.dat(BEATS[:8] + [(b, TEMPO + 100, ms) for b, _, ms in BEATS[8:]]))
     with pytest.raises(grid.GridError, match="more than one tempo"):
-        grid.prepare(FakeDb(files), track(bpm=85.0), "Jungle", 170.0)
+        grid.prepare_double(FakeDb(files), track(bpm=85.0))
 
 
 def test_prepare_refuses_a_track_without_analysis_files():
     with pytest.raises(grid.GridError, match="no analysis files"):
-        grid.prepare(FakeDb({}), track(bpm=85.0), "Jungle", 170.0)
+        grid.prepare_double(FakeDb({}), track(bpm=85.0))
 
 
 def test_apply_writes_the_files_and_the_bpm(files):
     db = FakeDb(files, length=60)
-    change = grid.prepare(db, track(bpm=85.0), "Jungle", 170.0)
+    change = grid.prepare_double(db, track(bpm=85.0))
 
     assert grid.apply(db, [change]) == 1
 
@@ -102,3 +102,41 @@ def test_apply_writes_the_files_and_the_bpm(files):
     assert files["EXT"].read_bytes() == change.ext_data
     assert db.content.BPM == 2 * TEMPO
     assert db.commits == 1
+
+
+def _new_beats(bpm: float, first: float, count: int) -> list[tuple[int, float]]:
+    return [((k % 4) + 1, first + k * 60 / bpm) for k in range(count)]
+
+
+def test_retime_writes_the_new_grid(files):
+    db = FakeDb(files, length=60)
+    new = _new_beats(95.0, 0.25, 40)
+
+    change = grid.prepare_retime(db, track(bpm=85.0), 95.0, new)
+
+    entries = AnlzFile.parse(change.dat_data).get_tag("PQTZ").content.entries
+    assert [(e.beat, e.time) for e in entries] == [(n, round(t * 1000)) for n, t in new]
+    assert {e.tempo for e in entries} == {9500}
+    assert change.bpm == 9500
+    assert AnlzFile.parse(change.ext_data).get_tag("PQT2").content.entry_count == 0
+
+
+def test_retime_keeps_the_phrases_at_the_same_time(files):
+    new = _new_beats(95.0, 0.25, 40)
+
+    change = grid.prepare_retime(FakeDb(files, length=60), track(bpm=85.0), 95.0, new)
+
+    pssi = AnlzFile.parse(change.ext_data).get_tag("PSSI").content
+    old_times = [ms / 1000 for _, _, ms in BEATS]
+    for entry, old_beat in zip(pssi.entries, (1, 9)):
+        assert abs(new[entry.beat - 1][1] - old_times[old_beat - 1]) <= 60 / 95 / 2
+
+
+def test_apply_sets_the_new_bpm(files):
+    db = FakeDb(files, length=60)
+    change = grid.prepare_retime(db, track(bpm=85.0), 95.0, _new_beats(95.0, 0.25, 40))
+
+    grid.apply(db, [change])
+
+    assert db.content.BPM == 9500
+    assert files["DAT"].read_bytes() == change.dat_data

@@ -27,14 +27,14 @@ def run(args) -> None:
     changes, problems = [], []
     for t, genre, median in found:
         try:
-            changes.append(grid.prepare(db, t, genre, median))
+            changes.append((grid.prepare_double(db, t), genre, median))
         except grid.GridError as error:
             problems.append((t, str(error)))
 
     print(f"\n{len(changes)} tracks have half the BPM of their genre. dj-librarian doubles the BPM and the beat grid:")
-    for c in changes:
+    for c, genre, median in changes:
         print(f"  {c.track.bpm:6.2f} -> {2 * c.track.bpm:6.2f} BPM  {track_name(c.track)}  "
-              f"({c.genre}, median {c.median:.0f})")
+              f"({genre}, median {median:.0f})")
     if excluded:
         print(f"\nexcluded with --exclude ({len(excluded)}):")
         for t, _, _ in excluded:
@@ -55,8 +55,8 @@ def run(args) -> None:
 
     writer.ensure_rekordbox_closed()
     backup = writer.backup(writer.db_path())
-    writer.backup_analysis(backup, [p for c in changes for p in (c.dat, c.ext)])
+    writer.backup_analysis(backup, [p for c, _, _ in changes for p in (c.dat, c.ext)])
     print(f"backup (master.db and analysis files): {backup}")
-    print(f"written: {grid.apply(db, changes)} tracks")
+    print(f"written: {grid.apply(db, [c for c, _, _ in changes])} tracks")
     print("\nNext, open rekordbox. Make sure that the BPM, the beat grid, the phrases and the cues are correct.\n"
           "to undo: dj-librarian restore (restores the backup above)")

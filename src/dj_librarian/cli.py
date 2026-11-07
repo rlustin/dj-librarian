@@ -5,6 +5,7 @@ from dj_librarian.commands import (
     apply,
     ask_claude,
     check,
+    check_grids,
     dedupe,
     double_bpm,
     report,
@@ -13,7 +14,7 @@ from dj_librarian.commands import (
 )
 
 # In the order of the help: the usual order of use
-COMMANDS = [analyze, report, check, dedupe, double_bpm, review_genres, apply, ask_claude, restore]
+COMMANDS = [analyze, report, check, check_grids, dedupe, double_bpm, review_genres, apply, ask_claude, restore]
 
 
 def main() -> None:

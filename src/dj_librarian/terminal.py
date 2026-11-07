@@ -11,7 +11,7 @@ from typing import Self
 
 COLOUR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 SCREEN = sys.stdout.isatty()
-ARROWS = {"C": "right", "D": "left", "A": "up", "B": "down"}
+ARROWS = {"C": "right", "D": "left", "A": "up", "B": "down", "H": "home", "F": "end"}
 ESCAPE = re.compile(r"\x1b(?:\[[0-9;]*[A-Za-z~]|O[A-Za-z])?")
 
 
@@ -27,9 +27,15 @@ def clear() -> None:
         print("\x1b[2J\x1b[H", end="", flush=True)
 
 
-def replace_first_line(text: str) -> None:
+def replace_lines(row: int, lines: list[str]) -> None:
+    """Write `lines` from the line `row` (1 is the top) of the screen, then put the cursor back."""
     if SCREEN:
-        print(f"\x1b7\x1b[1;1H\x1b[2K{text}\x1b8", end="", flush=True)
+        text = "".join(f"\x1b[{row + k};1H\x1b[2K{line}" for k, line in enumerate(lines))
+        print(f"\x1b7{text}\x1b8", end="", flush=True)
+
+
+def replace_first_line(text: str) -> None:
+    replace_lines(1, [text])
 
 
 class Keys:
