@@ -1,7 +1,7 @@
-from dj_librarian import tagging, writer
+from dj_librarian import store, tagging, writer
 from dj_librarian.proposals import Proposal
 
-from helpers import track
+from helpers import add_content, add_cue, cues, track
 
 
 def _proposal(t, genre_write=None, comment="", cues=None, previous=None):
@@ -65,3 +65,57 @@ def test_two_backups_in_the_same_second(tmp_path):
     (tmp_path / "master.db").write_bytes(b"db")
 
     assert writer.backup(tmp_path / "master.db") != writer.backup(tmp_path / "master.db")
+
+
+def test_apply_replaces_the_cues_of_dj_librarian_and_keeps_yours(db):
+    content = add_content(db, "1")
+    add_cue(db, content, "A", 1.0, "yours")
+    add_cue(db, content, "B", 16.0, "generated")
+    store.write_json(store.GENERATED_CUES, ["generated"])
+    proposal = _proposal(track("1"), cues={"B": ("Intro end", 32.0), "C": ("Full energy", 64.0)},
+                         previous={"B": ("Intro end", 16.0)})
+
+    writer.apply(db, [proposal], {"cues"})
+
+    found = cues(db, "1")
+    assert found["A"] == ("yours", "", 1000)
+    assert {slot: (name, msec) for slot, (_, name, msec) in found.items() if slot != "A"} == {
+        "B": ("Intro end", 32000), "C": ("Full energy", 64000)}
+    assert set(store.read_json(store.GENERATED_CUES, [])) == {found["B"][0], found["C"][0]}
+
+
+def test_apply_gives_a_name_to_your_cue_without_a_name(db):
+    content = add_content(db, "1")
+    add_cue(db, content, "A", 8.0, "yours")
+    proposal = _proposal(track("1"))
+    proposal.cues.labels = {"A": "Start"}
+
+    writer.apply(db, [proposal], {"cues"})
+
+    assert cues(db, "1") == {"A": ("yours", "Start", 8000)}
+    assert store.read_json(store.GENERATED_CUES, []) == []  # The cue stays yours
+
+
+def test_apply_creates_a_genre_and_keeps_a_record_of_the_guesses(db):
+    add_content(db, "1")
+    add_content(db, "2")
+    guess = _proposal(track("1"), genre_write="Jungle", comment="E5 Dark")
+    guess.genre_action = "fill"
+    approved = _proposal(track("2"), genre_write="Jungle")
+
+    writer.apply(db, [guess, approved], {"genre", "comment"})
+
+    assert [g.Name for g in db.get_genre().all()] == ["Jungle"]
+    assert db.get_content(ID="1").Genre.Name == "Jungle" and db.get_content(ID="1").Commnt == "E5 Dark"
+    assert db.get_content(ID="2").Genre.Name == "Jungle"
+    assert store.read_json(store.GUESSED_GENRES, {}) == {"1": "Jungle"}  # Only the guess of dj-librarian
+
+
+def test_apply_removes_a_genre(db):
+    add_content(db, "1", genre=db.add_genre("Bass"))
+    store.write_json(store.GUESSED_GENRES, {"1": "Bass"})
+
+    writer.apply(db, [_proposal(track("1", genre="Bass"), genre_write="")], {"genre"})
+
+    assert db.get_content(ID="1").GenreID is None
+    assert store.read_json(store.GUESSED_GENRES, {}) == {}
