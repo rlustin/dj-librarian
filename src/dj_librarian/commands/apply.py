@@ -55,7 +55,7 @@ def run(args) -> None:
         print("cancelled. dj-librarian wrote nothing.")
         return
 
-    target = write_target(db, args.db)
+    target = write_target(db, args.db, "apply")
     stats = writer.apply(target, [p for p, _ in todo], parts, record=not args.db)
     print("written: " + ", ".join(f"{k} {v}" for k, v in stats.items()))
     if not args.db:

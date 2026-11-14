@@ -26,6 +26,8 @@ DB_FILES = ("master.db", "master.db-wal", "master.db-shm", PLAYLISTS_XML)
 PARTS = ("genre", "comment", "cues")
 ANALYSIS_DIR = "analysis"  # copies of rekordbox analysis files (beat grids), if the change touched them
 ANALYSIS_MANIFEST = "analysis.json"  # copy name -> original path
+RECORDS_DIR = "dj-librarian"  # copies of the files of dj-librarian at the time of the backup
+BACKUP_INFO = "backup.json"
 
 
 def ensure_rekordbox_closed() -> None:
@@ -46,7 +48,22 @@ def open_test_copy(path: str) -> MasterDatabase:
     return MasterDatabase(path=path)
 
 
-def backup(db_path: Path) -> Path:
+def _records() -> list[Path]:
+    """Not the Bandcamp links: they come from the backups, and dj-librarian reads them again."""
+    return [store.GENRE_DECISIONS, store.GUESSED_GENRES, store.GENERATED_CUES, store.OUTLIERS_REVIEWED,
+            store.CLAUDE_ANSWERS, store.GRID_DECISIONS]
+
+
+def _library_records() -> list[Path]:
+    """The records of what dj-librarian wrote. They must agree with master.db.
+
+    grid_decisions.json has records of the grids that dj-librarian wrote, but also your answers. Thus it stays.
+    After a restore of grids, its records do not agree with the files, and check-grids asks about them again.
+    """
+    return [store.GUESSED_GENRES, store.GENERATED_CUES]
+
+
+def backup(db_path: Path, command: str) -> Path:
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     target, n = store.BACKUP_DIR / stamp, 1
     while target.exists():  # Two writes in the same second
@@ -56,7 +73,21 @@ def backup(db_path: Path) -> Path:
     for name in DB_FILES:
         if (db_path.parent / name).exists():
             shutil.copy2(db_path.parent / name, target / name)
+    (target / RECORDS_DIR).mkdir()
+    for path in _records():
+        if path.exists():
+            shutil.copy2(path, target / RECORDS_DIR / path.name)
+    store.write_json(target / BACKUP_INFO, {"command": command})
     return target
+
+
+def backups() -> list[Path]:
+    """The oldest first."""
+    return sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir()) if store.BACKUP_DIR.exists() else []
+
+
+def backup_command(backup_dir: Path) -> str | None:
+    return store.read_json(backup_dir / BACKUP_INFO, {}).get("command")
 
 
 def backup_analysis(backup_dir: Path, paths: list[Path]) -> None:
@@ -70,11 +101,14 @@ def backup_analysis(backup_dir: Path, paths: list[Path]) -> None:
 
 
 def restore(backup_dir: Path, db_path: Path) -> Path:
-    """Put the backup back. Return a new backup of the current state, to undo the restore."""
+    """Put the backup back. Return a new backup of the current state, to undo the restore.
+
+    Your answers stay: they are still correct after the restore. The backup keeps a copy of them.
+    """
     if not (backup_dir / "master.db").exists():
         raise SystemExit(f"no master.db in {backup_dir}")
     originals = store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).values()
-    current = backup(db_path)
+    current = backup(db_path, "restore")
     backup_analysis(current, [Path(p) for p in originals if Path(p).exists()])
     for name in DB_FILES:
         if name == PLAYLISTS_XML and not (backup_dir / name).exists():
@@ -82,9 +116,13 @@ def restore(backup_dir: Path, db_path: Path) -> Path:
         (db_path.parent / name).unlink(missing_ok=True)
         if (backup_dir / name).exists():
             shutil.copy2(backup_dir / name, db_path.parent / name)
-    if (backup_dir / ANALYSIS_MANIFEST).exists():
-        for name, original in store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).items():
-            shutil.copy2(backup_dir / ANALYSIS_DIR / name, original)
+    if (backup_dir / RECORDS_DIR).exists():  # Older backups have no records
+        for path in _library_records():
+            path.unlink(missing_ok=True)
+            if (backup_dir / RECORDS_DIR / path.name).exists():
+                shutil.copy2(backup_dir / RECORDS_DIR / path.name, path)
+    for name, original in store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).items():
+        shutil.copy2(backup_dir / ANALYSIS_DIR / name, original)
     return current
 
 

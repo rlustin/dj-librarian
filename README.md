@@ -71,6 +71,8 @@ Other commands:
   the Bandcamp link, and the names and genres of similar tracks in your library.
 - `dj-librarian review-genres --outliers`: listen to the tracks that do not sound like their genre.
 - `dj-librarian restore`: put a backup back. Before it does, it makes a backup of the current state.
+  `--list` shows the backups and the command that made each one. Your answers (for example in `review-genres`)
+  stay as they are. Each backup has a copy of them in its `dj-librarian` folder.
 
 Use `--help` on each command for its options. Most commands accept `--playlist` to work on one playlist.
 
@@ -148,7 +150,7 @@ dj-librarian keeps its files in `~/.cache/dj-librarian`. Set `DJ_LIBRARIAN_HOME`
 | `outliers_reviewed.json` | your answers in `review-genres --outliers` |
 | `claude_genres.json` | the answers of `ask-claude` |
 | `source_urls.json` | the Bandcamp links found in the comments and in the backups, for `ask-claude` |
-| `backups/` | a copy of `master.db` before each write |
+| `backups/` | before each write: a copy of `master.db`, of the analysis files that the write changes, and of the JSON files above (not `source_urls.json`) |
 | `models/` | the Essentia models, downloaded at the first `analyze` |
 
 Do not delete `genre_decisions.json`, `grid_decisions.json` and `outliers_reviewed.json`: they hold your work.

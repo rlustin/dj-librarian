@@ -4,6 +4,7 @@ import csv
 import os
 import sys
 from collections import Counter
+from pathlib import Path
 
 from dj_librarian import library, proposals, writer
 from dj_librarian.cache import Cache
@@ -72,10 +73,24 @@ def load_checks(db, steps: Steps):
     return tracks, analysis, yours, report
 
 
-def write_target(db: library.MasterDatabase, test_copy: str | None) -> library.MasterDatabase:
+def write_target(db: library.MasterDatabase, test_copy: str | None, command: str) -> library.MasterDatabase:
     """The database to write: the test copy of --db, or the real library after a backup."""
     if test_copy:
         return writer.open_test_copy(test_copy)
     writer.ensure_rekordbox_closed()
-    print(f"backup: {writer.backup(writer.db_path())}")
+    make_backup(command)
     return db
+
+
+def make_backup(command: str, analysis: list[Path] | None = None) -> None:
+    """Back up master.db, and the analysis files that the command changes."""
+    backup = writer.backup(writer.db_path(), command)
+    if analysis is None:
+        print(f"backup: {backup}")
+    else:
+        writer.backup_analysis(backup, analysis)
+        print(f"backup (master.db and analysis files): {backup}")
+
+
+def plural(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "s")

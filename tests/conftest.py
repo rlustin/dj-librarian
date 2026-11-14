@@ -11,19 +11,26 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 
 @pytest.fixture
-def db(tmp_path, monkeypatch):
+def home(tmp_path, monkeypatch):
+    """Empty records of dj-librarian and no backups, for one test."""
+    from dj_librarian import store
+
+    for name, path in vars(store).items():
+        if isinstance(path, Path) and path.suffix == ".json":
+            monkeypatch.setattr(store, name, tmp_path / path.name)
+    monkeypatch.setattr(store, "BACKUP_DIR", tmp_path / "backups")
+    return tmp_path
+
+
+@pytest.fixture
+def db(home, monkeypatch):
     """An empty master.db for one test, with empty records of dj-librarian."""
     from pyrekordbox.masterdb import database
-
-    from dj_librarian import store
 
     from helpers import empty_library
 
     # pyrekordbox does not write while rekordbox is open, also to another file
     monkeypatch.setattr(database, "get_rekordbox_pid", lambda *args, **kwargs: 0)
-    for name, path in vars(store).items():  # The records of what dj-librarian wrote start empty
-        if isinstance(path, Path) and path.suffix == ".json":
-            monkeypatch.setattr(store, name, tmp_path / path.name)
-    library = empty_library(tmp_path)
+    library = empty_library(home)
     yield library
     library.close()

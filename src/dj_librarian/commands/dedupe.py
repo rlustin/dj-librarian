@@ -90,7 +90,7 @@ def run(args) -> None:
         print("cancelled. dj-librarian wrote nothing.")
         return
 
-    stats = dedupe.apply(write_target(db, args.db), groups)
+    stats = dedupe.apply(write_target(db, args.db, "dedupe"), groups)
     print("written: " + ", ".join(f"{k} {v}" for k, v in stats.items()))
     genres = {g.keeper.track.id: g.genre for g in groups if g.genre}
     if genres and not args.db:

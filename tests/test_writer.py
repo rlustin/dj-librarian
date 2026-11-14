@@ -36,14 +36,14 @@ def test_changes_does_not_write_cues_again_at_almost_the_same_time():
     assert writer.changes(proposal, {"cues"}) == {"cues": {"A": ("Start", 1.0)}}
 
 
-def test_backup_and_restore(tmp_path):
-    library = tmp_path / "rekordbox"
+def test_backup_and_restore(home):
+    library = home / "rekordbox"
     library.mkdir()
     (library / "master.db").write_bytes(b"before")
-    analysis = tmp_path / "ANLZ0000.DAT"
+    analysis = home / "ANLZ0000.DAT"
     analysis.write_bytes(b"grid before")
 
-    backup = writer.backup(library / "master.db")
+    backup = writer.backup(library / "master.db", "check-grids")
     writer.backup_analysis(backup, [analysis])
     (library / "master.db").write_bytes(b"after")
     (library / "master.db-wal").write_bytes(b"wal after")
@@ -53,6 +53,8 @@ def test_backup_and_restore(tmp_path):
     assert (library / "master.db").read_bytes() == b"before"
     assert not (library / "master.db-wal").exists()
     assert analysis.read_bytes() == b"grid before"
+    assert writer.backup_command(backup) == "check-grids"
+    assert writer.backup_command(current) == "restore"
 
     writer.restore(current, library / "master.db")  # undo
 
@@ -61,10 +63,40 @@ def test_backup_and_restore(tmp_path):
     assert analysis.read_bytes() == b"grid after"
 
 
-def test_two_backups_in_the_same_second(tmp_path):
-    (tmp_path / "master.db").write_bytes(b"db")
+def test_restore_puts_back_the_records_of_the_writes_and_keeps_your_answers(home):
+    (home / "master.db").write_bytes(b"db")
+    store.write_json(store.GUESSED_GENRES, {"1": "House"})
+    store.write_json(store.GENRE_DECISIONS, {"2": "Techno"})
 
-    assert writer.backup(tmp_path / "master.db") != writer.backup(tmp_path / "master.db")
+    backup = writer.backup(home / "master.db", "apply")
+    store.write_json(store.GUESSED_GENRES, {"1": "House", "3": "Dub"})
+    store.write_json(store.GENERATED_CUES, ["cue-uuid"])
+    store.write_json(store.GENRE_DECISIONS, {"2": "Techno", "4": "Footwork"})
+    writer.restore(backup, home / "master.db")
+
+    assert store.read_json(store.GUESSED_GENRES, None) == {"1": "House"}
+    assert not store.GENERATED_CUES.exists()  # dj-librarian wrote no cues before the backup
+    assert store.read_json(store.GENRE_DECISIONS, None) == {"2": "Techno", "4": "Footwork"}
+    assert store.read_json(backup / writer.RECORDS_DIR / store.GENRE_DECISIONS.name, None) == {"2": "Techno"}
+
+
+def test_restore_of_a_backup_without_records_keeps_the_records(home):
+    old = store.BACKUP_DIR / "2026-10-25_202245"
+    old.mkdir(parents=True)
+    (old / "master.db").write_bytes(b"old")
+    (home / "master.db").write_bytes(b"db")
+    store.write_json(store.GUESSED_GENRES, {"1": "House"})
+
+    writer.restore(old, home / "master.db")
+
+    assert (home / "master.db").read_bytes() == b"old"
+    assert store.read_json(store.GUESSED_GENRES, None) == {"1": "House"}
+
+
+def test_two_backups_in_the_same_second(home):
+    (home / "master.db").write_bytes(b"db")
+
+    assert writer.backup(home / "master.db", "apply") != writer.backup(home / "master.db", "apply")
 
 
 def test_apply_replaces_the_cues_of_dj_librarian_and_keeps_yours(db):
