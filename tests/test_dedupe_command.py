@@ -6,7 +6,7 @@ import pytest
 from dj_librarian import dedupe, proposals, store, writer
 from dj_librarian.commands import dedupe as command
 
-from helpers import add_analysed, library_copy, opened, sound
+from helpers import add_analysed, add_cue, cues, library_copy, opened, sound
 
 
 @pytest.fixture
@@ -56,11 +56,11 @@ def test_dedupe_shows_the_copies_and_writes_nothing(db, library, tmp_path, capsy
     assert _rows(tmp_path) == [("kept", "keep", ""), ("extra", "remove", "Jungle")]
     assert db.get_playlist(Name=dedupe.DUPLICATES_PLAYLIST).first() is None
     output = capsys.readouterr().out
-    assert "1 files are missing, and no other entry has the same file." in output
+    assert "1 file is missing, and no other entry has the same file." in output
     assert "Artist - Lost" in output
     assert "Artist - Pressure  (keep: more plays)" in output
     assert "genre: the kept copy gets your genre Jungle" in output
-    assert "1 copies to remove, 0 tracks with two different genres." in output
+    assert "1 copy to remove, 0 tracks with two different genres." in output
     assert "To make these changes: dj-librarian dedupe --apply" in output
 
 
@@ -76,21 +76,26 @@ def test_dedupe_apply_merges_the_copies(db, library, tmp_path, capsys):
     assert proposals.load_genre_decisions() == {"kept": "Jungle"}  # The next `apply` writes it
     assert len(writer.backups()) == 1
     output = capsys.readouterr().out
-    assert "1 kept copies get the genre of another copy at the next `dj-librarian apply`." in output
+    assert "1 kept copy gets the genre of another copy at the next `dj-librarian apply`." in output
     assert "to undo: dj-librarian restore" in output
 
 
 def test_dedupe_merges_a_moved_file_with_its_old_entry(db, library, tmp_path, capsys):
-    library("old", "Artist/song.mp3", sound(0, 0), "Song", plays=9, on_disk=False)
+    old = library("old", "Artist/song.mp3", sound(0, 0), "Song", plays=9, on_disk=False)
+    add_cue(db, old, "A", 1.0, "yours")
     library("new", "Artist/song.mp3", sound(1, 1), "Song")
+    library("instrumental", "Artist/song (instrumental).mp3", sound(1, 1), "Song (Instrumental)")
 
     command.run(_args(tmp_path, apply=True))
 
     assert _playlist(db, dedupe.DUPLICATES_PLAYLIST) == ["old"]
     assert db.get_content(ID="new").DJPlayCount == "9"
+    assert cues(db, "new")["A"][0] == "yours"
     output = capsys.readouterr().out
     assert "Artist - Song  (keep: the file of the other entry is missing)" in output
-    assert "1 of them have an entry with a missing file" in output
+    assert "1 track has more than one copy." in output and "1 track has an entry with a missing file" in output
+    assert "1 pair has the same sound but another length or version" in output
+    assert "9 plays, 1 cue of yours" in output and "1 cue of yours moves to the kept copy" in output
     assert "files are missing" not in output
 
 
@@ -102,7 +107,7 @@ def test_dedupe_waits_with_the_copies_of_a_moved_file(db, library, tmp_path, cap
     command.run(_args(tmp_path))
 
     assert _rows(tmp_path) == [("new", "keep", ""), ("old", "remove", "")]
-    assert "1 tracks have a missing entry and more than one copy on the disk." in capsys.readouterr().out
+    assert "1 track has a missing entry and more than one copy on the disk." in capsys.readouterr().out
 
 
 def test_dedupe_writes_nothing_if_you_do_not_confirm(db, library, tmp_path, monkeypatch, capsys):

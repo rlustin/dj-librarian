@@ -10,7 +10,7 @@ from dj_librarian import checks, library, proposals, tagging
 from dj_librarian.commands.common import load_checks, neighbours, track_name
 from dj_librarian.player import SEEK_SECONDS, Player
 from dj_librarian.progress import Steps
-from dj_librarian.terminal import Keys, accent, bold, clear, dim, replace_first_line, warn
+from dj_librarian.terminal import Keys, accent, bold, clear, dim, plural, replace_first_line, warn
 
 CLAUDE_RANK = {"high": 0, "medium": 1, "low": 2}
 SIMILAR_EXAMPLES = 2
@@ -107,8 +107,8 @@ def run(args) -> None:
                    for p in selected)
     approved = sum(review.answers[q.track.id] not in (None, q.current) for q in questions
                    if q.track.id in review.answers)
-    print(f"\nThis session: {len(review.answers)} answers, {approved} genres approved. "
-          f"The next `dj-librarian apply` writes {to_write} genre changes from your answers.")
+    print(f"\nThis session: {plural(len(review.answers), 'answer')}, {plural(approved, 'genre')} approved. "
+          f"The next `dj-librarian apply` writes {plural(to_write, 'genre change')} from your answers.")
 
 
 class Review:

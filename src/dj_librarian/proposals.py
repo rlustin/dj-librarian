@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dj_librarian import library, store, tagging
 from dj_librarian.cache import Cache
 from dj_librarian.progress import Steps
+from dj_librarian.terminal import plural
 
 
 @dataclass
@@ -95,7 +96,8 @@ def build(
     if not analysed:
         raise SystemExit("nothing analysed yet, run `dj-librarian analyze` first")
     if len(analysed) < 200:
-        print(f"warning: only {len(analysed)} tracks have an analysis. Energy, mood and genre compare "
+        has = "has" if len(analysed) == 1 else "have"
+        print(f"warning: only {plural(len(analysed), 'track')} {has} an analysis. Energy, mood and genre compare "
               "each track with these tracks. They become more reliable with more analysed tracks.\n")
 
     ids = [t.id for t in analysed]

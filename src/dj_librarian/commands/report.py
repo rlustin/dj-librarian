@@ -4,6 +4,7 @@ from collections import Counter
 
 from dj_librarian import library, proposals, tagging
 from dj_librarian.commands.common import fmt_time, select, write_csv
+from dj_librarian.terminal import plural
 
 
 def add_parser(sub) -> None:
@@ -49,7 +50,8 @@ def run(args) -> None:
 
     write_csv(args.out, rows)
 
-    print(f"{len(rows)} tracks in report ({context.analysed}/{context.total} analysed in total) -> {args.out}\n")
+    print(f"{plural(len(rows), 'track')} in report ({context.analysed}/{context.total} analysed in total) "
+          f"-> {args.out}\n")
     for group in ("bpm", "key", "genre", "energy", "cue"):
         items = sorted((k, v) for k, v in stats.items() if k.startswith(group))
         if group == "energy":
@@ -71,5 +73,5 @@ def _print_genre_accuracy(tracks, genres) -> None:
     if not learned:
         return
     correct = sum(genres[t.id].genre.lower() == t.genre.lower() for t in learned)
-    print(f"\n  genre self-check on your {len(tagged)} tagged tracks: confident guess for {len(learned)}, "
+    print(f"\n  genre self-check on your {plural(len(tagged), 'tagged track')}: confident guess for {len(learned)}, "
           f"of which {correct} ({100 * correct / len(learned):.0f}%) match your tag")

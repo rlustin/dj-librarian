@@ -58,7 +58,7 @@ def test_check_grids_shows_the_wrong_grids(grids, tmp_path, capsys):
     assert "3 tracks: 1 without an audio file or a rekordbox grid, 0 to check" in output
     assert "ok: 1, wrong tempo: 1" in output
     assert "wrong tempo  85.00 -> 170.00 BPM  Artist - Half" in output
-    assert "Listen to the 1 better grids with clicks: dj-librarian check-grids --review" in output
+    assert "Listen to the 1 better grid with clicks: dj-librarian check-grids --review" in output
 
 
 def test_an_answer_for_an_old_grid_does_not_count(grids, tmp_path, capsys):
@@ -66,7 +66,7 @@ def test_an_answer_for_an_old_grid_does_not_count(grids, tmp_path, capsys):
 
     check_grids.run(_args(tmp_path))
 
-    assert "Listen to the 1 better grids" in capsys.readouterr().out
+    assert "Listen to the 1 better grid" in capsys.readouterr().out
 
 
 def test_check_grids_apply_writes_the_accepted_grid(db, grids, tmp_path, capsys):
@@ -82,7 +82,7 @@ def test_check_grids_apply_writes_the_accepted_grid(db, grids, tmp_path, capsys)
     decision = store.read_json(store.GRID_DECISIONS, {})["half"]
     assert decision == {"key": _key(db, "half", dat), "keep": True, "written": True}  # The next check does not ask
     assert str(dat) in store.read_json(writer.backups()[0] / writer.ANALYSIS_MANIFEST, {}).values()
-    assert "written: 1 tracks" in capsys.readouterr().out
+    assert "written: 1 track" in capsys.readouterr().out
 
 
 def test_check_grids_review_without_open_grids(grids, tmp_path, capsys):

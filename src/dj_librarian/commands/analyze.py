@@ -9,6 +9,7 @@ from dj_librarian.cache import Cache
 from dj_librarian.commands.common import quiet_stderr
 from dj_librarian.progress import Steps
 from dj_librarian.store import MODELS_DIR
+from dj_librarian.terminal import plural
 
 _analyzer = None
 _failed = None  # Why the worker cannot load the models. Its stderr is off, so the error must go back as a result.
@@ -61,7 +62,7 @@ def run(args) -> None:
     todo = [t for t in tracks if t.id in files and not cache.is_fresh(t.id, files[t.id])]
     if args.limit is not None:
         todo = todo[: args.limit]
-    print(f"{len(tracks)} tracks, {len(missing)} files not found, {len(todo)} to analyse")
+    print(f"{plural(len(tracks), 'track')}, {plural(len(missing), 'file')} not found, {len(todo)} to analyse")
     if not todo:
         return
 

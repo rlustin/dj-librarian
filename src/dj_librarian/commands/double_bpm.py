@@ -3,6 +3,7 @@
 from dj_librarian import grid, library, writer
 from dj_librarian.commands.common import clean_backups, confirm, load_checks, make_backup, matches, track_name
 from dj_librarian.progress import Steps
+from dj_librarian.terminal import plural
 
 
 def add_parser(sub) -> None:
@@ -31,7 +32,9 @@ def run(args) -> None:
         except grid.GridError as error:
             problems.append((t, str(error)))
 
-    print(f"\n{len(changes)} tracks have half the BPM of their genre. dj-librarian doubles the BPM and the beat grid:")
+    has, their = ("has", "its") if len(changes) == 1 else ("have", "their")
+    print(f"\n{plural(len(changes), 'track')} {has} half the BPM of {their} genre. "
+          "dj-librarian doubles the BPM and the beat grid:")
     for c, genre, median in changes:
         print(f"  {c.track.bpm:6.2f} -> {2 * c.track.bpm:6.2f} BPM  {track_name(c.track)}  "
               f"({genre}, median {median:.0f})")
@@ -49,13 +52,13 @@ def run(args) -> None:
         print("\nTo make these changes: dj-librarian double-bpm --apply (rekordbox must be closed). "
               "To try one track first, add --track.")
         return
-    if not args.yes and not confirm(f"\ndouble the BPM of {len(changes)} tracks?"):
+    if not args.yes and not confirm(f"\ndouble the BPM of {plural(len(changes), 'track')}?"):
         print("cancelled. dj-librarian wrote nothing.")
         return
 
     writer.ensure_rekordbox_closed()
     make_backup("double-bpm", db, [p for c, _, _ in changes for p in (c.dat, c.ext)])
-    print(f"written: {grid.apply(db, [c for c, _, _ in changes])} tracks")
+    print(f"written: {plural(grid.apply(db, [c for c, _, _ in changes]), 'track')}")
     print("\nNext, open rekordbox. Make sure that the BPM, the beat grid, the phrases and the cues are correct.\n"
           "to undo: dj-librarian restore (restores the backup above)")
     clean_backups()

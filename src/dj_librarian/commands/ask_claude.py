@@ -7,7 +7,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dj_librarian import checks, claude_genres, library, proposals
 from dj_librarian.commands.common import load_checks
 from dj_librarian.progress import LiveStatus, Steps
-from dj_librarian.terminal import warn
+from dj_librarian.terminal import plural, warn
 
 
 def add_parser(sub) -> None:
@@ -67,13 +67,16 @@ def run(args) -> None:
         # Tracks that do not sound like your genre, and that you did not check in `review-genres --outliers`
         outliers = {o.track.id: o.genre for o in report.outliers if reviewed.get(o.track.id) != o.genre}
         more = [p for p in selected if p.track.id in outliers and ask(p, outlier=True)]
-        print(f"{len(todo)} tracks without a genre, {len(more)} tracks that do not sound like your genre")
+        do = "does" if len(more) == 1 else "do"
+        print(f"{plural(len(todo), 'track')} without a genre, {plural(len(more), 'track')} that {do} not sound like "
+              "your genre")
         todo += more
         if args.limit is not None:
             todo = todo[: args.limit]
     todo.sort(key=lambda p: p.track.path)  # tracks of the same release go together
     batches = [todo[i:i + claude_genres.BATCH_SIZE] for i in range(0, len(todo), claude_genres.BATCH_SIZE)]
-    print(f"{len(todo)} tracks in {len(batches)} calls to Claude ({args.model}, web search {'on' if web else 'off'})")
+    print(f"{plural(len(todo), 'track')} in {plural(len(batches), 'call')} to Claude "
+          f"({args.model}, web search {'on' if web else 'off'})")
     if not todo:
         return
 
@@ -118,7 +121,7 @@ def run(args) -> None:
         pool.shutdown(wait=False, cancel_futures=True)
         claude_genres.stop_all()
         if not args.self_check:
-            print(f"dj-librarian saved {len(results)} answers. Run the command again to continue.")
+            print(f"dj-librarian saved {plural(len(results), 'answer')}. Run the command again to continue.")
         return
     finally:
         pool.shutdown(wait=True, cancel_futures=True)
@@ -127,7 +130,7 @@ def run(args) -> None:
         _print_claude_self_check([p for p in todo if p.track.id in results], results, yours)
     else:
         new = Counter(a["genre"] for a in results.values() if a["is_new_genre"])
-        print(f"dj-librarian saved {len(results)} answers. "
+        print(f"dj-librarian saved {plural(len(results), 'answer')}. "
               "Review them with `dj-librarian review-genres` (candidate c).")
         if new:
             print("new genres proposed: " + ", ".join(f"{g} ({n})" for g, n in new.most_common()))

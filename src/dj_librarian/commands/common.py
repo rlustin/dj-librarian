@@ -9,7 +9,7 @@ from pathlib import Path
 from dj_librarian import claude_genres, library, proposals, writer
 from dj_librarian.cache import Cache
 from dj_librarian.progress import Steps
-from dj_librarian.terminal import warn
+from dj_librarian.terminal import plural, warn
 
 
 def quiet_stderr() -> None:
@@ -115,7 +115,3 @@ def clean_backups() -> None:
                    "backups. If you do not need it, delete it yourself."))
     if cleanup.error:
         print(warn(f"{cleanup.error}\ndj-librarian tries again at the next write."))
-
-
-def plural(n: int, word: str) -> str:
-    return f"{n} {word}" + ("" if n == 1 else "s")

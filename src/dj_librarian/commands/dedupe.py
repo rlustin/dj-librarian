@@ -4,6 +4,7 @@ from dj_librarian import dedupe, library, proposals
 from dj_librarian.cache import Cache
 from dj_librarian.commands.common import clean_backups, confirm, track_name, write_csv, write_target
 from dj_librarian.progress import Steps
+from dj_librarian.terminal import plural
 
 
 def add_parser(sub) -> None:
@@ -37,15 +38,17 @@ def run(args) -> None:
     later = sum(waits)
     groups = [g for g, wait in zip(groups, waits) if not wait]
     if alone:
-        print(f"\n{len(alone)} files are missing, and no other entry has the same file. "
-              "If you moved them, relocate them in rekordbox:")
+        are = "is" if len(alone) == 1 else "are"
+        print(f"\n{plural(len(alone), 'file')} {are} missing, and no other entry has the same file. "
+              "If you moved a file, relocate it in rekordbox:")
         for t in alone[: args.limit]:
             print(f"  {track_name(t)}  ({t.path})")
         if len(alone) > args.limit:
             print(f"  ... and {len(alone) - args.limit} more")
     if later:
-        print(f"\n{later} tracks have a missing entry and more than one copy on the disk. "
-              "Remove the duplicates below in rekordbox, then use dedupe again for these tracks.")
+        print(f"\n{plural(later, 'track')} {'has' if later == 1 else 'have'} a missing entry "
+              "and more than one copy on the disk. "
+              "Remove the duplicates below in rekordbox, then use dedupe again.")
     groups = moved + groups
     if not groups:
         print("no duplicates")
@@ -53,11 +56,14 @@ def run(args) -> None:
 
     extras = sum(len(g.extras) for g in groups)
     entries = sum(len([n for n in c.playlists if n != dedupe.DUPLICATES_PLAYLIST]) for g in groups for c in g.extras)
-    print(f"\n{len(groups)} tracks have more than one copy. dj-librarian keeps one copy of each and puts it in the "
-          f"playlists of the other copies ({entries} playlist entries).\n"
-          f"{len(moved)} of them have an entry with a missing file, and an entry with the same file at a new place. "
+    print(f"\n{plural(len(groups), 'track')} {'has' if len(groups) == 1 else 'have'} more than one copy. "
+          "dj-librarian keeps one copy of each track and puts it in the playlists of the other copies "
+          f"({plural(entries, 'playlist entry', 'playlist entries')}).\n"
+          f"{plural(len(moved), 'track')} {'has' if len(moved) == 1 else 'have'} an entry with a missing file, "
+          "and an entry with the same file at a new place. "
           "rekordbox cannot relocate these.\n"
-          f"{other_length} pairs have the same sound but another length or version (for example, instrumental). "
+          f"{plural(other_length, 'pair')} {'has' if other_length == 1 else 'have'} the same sound "
+          "but another length or version (for example, instrumental). "
           "dj-librarian does not merge them.\n")
     rows = []
     for g in groups:
@@ -66,14 +72,16 @@ def run(args) -> None:
             print(f"  {track_name(g.keeper.track)}  (keep: {g.reason})")
         for role, c in [("keep", g.keeper)] + [("remove", c) for c in g.extras]:
             if shown:
-                print(f"    {role:6s} {_short_path(c.track.path)}  ·  {c.plays} plays, {c.own_cues} cues of yours  ·  "
+                print(f"    {role:6s} {_short_path(c.track.path)}  ·  {plural(c.plays, 'play')}, "
+                      f"{plural(c.own_cues, 'cue')} of yours  ·  "
                       f"{', '.join(c.playlists) or 'no playlist'}")
             rows.append({"track": track_name(g.keeper.track), "role": role,
                          "reason": g.reason if role == "keep" else "", "plays": c.plays, "your_cues": c.own_cues,
                          "genre": c.genre or "", "playlists": "; ".join(c.playlists),
                          "id": c.track.id, "path": c.track.path})
         if shown and g.cues:
-            print(f"    cues: {len(g.cues)} cues of yours move to the kept copy")
+            print(f"    cues: {plural(len(g.cues), 'cue')} of yours {'moves' if len(g.cues) == 1 else 'move'} "
+                  "to the kept copy")
         if shown and g.genre:
             print(f"    genre: the kept copy gets your genre {g.genre}")
         elif shown and g.conflict:
@@ -82,7 +90,8 @@ def run(args) -> None:
         print(f"  ... and {len(groups) - args.limit} more")
     write_csv(args.out, rows)
     conflicts = sum(bool(g.conflict) for g in groups)
-    print(f"\n{extras} copies to remove, {conflicts} tracks with two different genres. All copies -> {args.out}")
+    print(f"\n{plural(extras, 'copy', 'copies')} to remove, {plural(conflicts, 'track')} with two different genres. "
+          f"All copies -> {args.out}")
     if not args.apply:
         print("To make these changes: dj-librarian dedupe --apply (rekordbox must be closed)")
         return
@@ -96,7 +105,9 @@ def run(args) -> None:
     if genres and not args.db:
         # The next `apply` writes them, as if you gave them in review-genres
         proposals.save_genre_decisions(proposals.load_genre_decisions() | genres)
-        print(f"{len(genres)} kept copies get the genre of another copy at the next `dj-librarian apply`.")
+        gets = "gets" if len(genres) == 1 else "get"
+        print(f"{plural(len(genres), 'kept copy', 'kept copies')} {gets} the genre of another copy "
+              "at the next `dj-librarian apply`.")
     print(f'\nNext, in rekordbox: open the playlist "{dedupe.DUPLICATES_PLAYLIST}", select all tracks, '
           "and use Remove from Collection. The files stay on the disk.")
     if not args.db:
