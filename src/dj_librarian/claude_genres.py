@@ -90,30 +90,72 @@ def save_answers(answers: dict[str, dict]) -> None:
     store.write_json(store.CLAUDE_ANSWERS, answers)
 
 
-def source_urls(tracks: list[Track]) -> dict[str, str]:
-    """Bandcamp links in the comments, now or in the backups.
+def source_urls(tracks: list[Track]) -> tuple[dict[str, str], list[Path]]:
+    """Bandcamp links in the comments, now or in the backups, and the backups that dj-librarian cannot read.
 
     `apply` removes a comment that is only a link (see tagging.BOILERPLATE). The backups from before keep it.
     """
+    from dj_librarian.writer import backups, kept_backups
+
+    unreadable = [b for b in unread_backups(backups() + kept_backups()) if not read_backup_urls(b)]
+    current = {t.id: match.group(0) for t in tracks if (match := URL.search(t.comment or ""))}
+    return _url_record()["urls"] | current, unreadable
+
+
+def remember_urls(db, backup: Path) -> None:
+    """Keep the links of the comments before a write. Then dj-librarian does not need to read the backup later."""
+    from pyrekordbox.masterdb import models
+
+    content = models.DjmdContent
+    rows = db.session.query(content.ID, content.Commnt).filter(content.Commnt.ilike("%bandcamp.com%"))
+    _add_urls(backup, {id: m.group(0) for id, comment in rows if (m := URL.search(comment or ""))})
+
+
+def read_backup_urls(backup: Path) -> bool:
+    """Keep the Bandcamp links of a backup from before dj-librarian kept them at each backup.
+
+    Return False if dj-librarian cannot read the backup, for example because a file is damaged.
+    """
+    try:
+        urls = _backup_urls(backup)
+    except Exception:  # noqa: BLE001 - one damaged backup must not stop the other work
+        return False
+    _add_urls(backup, urls)
+    return True
+
+
+def unread_backups(backups: list[Path]) -> list[Path]:
+    """The backups that dj-librarian did not read for Bandcamp links yet."""
+    done = set(_url_record()["backups"])
+    return [b for b in backups if b.name not in done and (b / "master.db").exists()]
+
+
+def _url_record() -> dict:
+    return {"backups": [], "urls": {}} | store.read_json(store.SOURCE_URLS, {})
+
+
+def _add_urls(backup: Path, urls: dict[str, str]) -> None:
+    """The oldest link of a track stays. dj-librarian saves after each backup, so that it can stop and continue."""
+    record = _url_record()
+    names = {p.name for p in store.BACKUP_DIR.iterdir()} if store.BACKUP_DIR.exists() else set()
+    record["urls"] = urls | record["urls"]
+    record["backups"] = [n for n in record["backups"] if n in names] + [backup.name]  # Forget the deleted backups
+    store.write_json(store.SOURCE_URLS, record)
+
+
+def _backup_urls(backup: Path) -> dict[str, str]:
     from dj_librarian.library import MasterDatabase
     from dj_librarian.writer import DB_FILES
 
-    record = store.read_json(store.SOURCE_URLS, {"backups": [], "urls": {}})
-    backups = sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir()) if store.BACKUP_DIR.exists() else []
-    new = [b for b in backups if b.name not in record["backups"] and (b / "master.db").exists()]
-    for backup in new:
-        with tempfile.TemporaryDirectory() as tmp:  # never open a backup in place
-            for name in DB_FILES:
-                if (backup / name).exists():
-                    shutil.copy2(backup / name, Path(tmp) / name)
-            for content in MasterDatabase(path=Path(tmp) / "master.db").get_content().all():
-                if content.ID not in record["urls"] and (match := URL.search(content.Commnt or "")):
-                    record["urls"][content.ID] = match.group(0)
-        record["backups"].append(backup.name)
-    if new:
-        store.write_json(store.SOURCE_URLS, record)
-    current = {t.id: match.group(0) for t in tracks if (match := URL.search(t.comment or ""))}
-    return record["urls"] | current
+    with tempfile.TemporaryDirectory() as tmp:  # never open a backup in place
+        for name in DB_FILES:
+            if (backup / name).exists():
+                shutil.copy2(backup / name, Path(tmp) / name)
+        db = MasterDatabase(path=Path(tmp) / "master.db")
+        try:
+            return {c.ID: match.group(0) for c in db.get_content().all() if (match := URL.search(c.Commnt or ""))}
+        finally:
+            db.close()
 
 
 def vocabulary(yours: dict[str, str]) -> list[tuple[str, int]]:

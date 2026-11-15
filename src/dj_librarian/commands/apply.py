@@ -3,7 +3,7 @@
 from collections import Counter
 
 from dj_librarian import library, writer
-from dj_librarian.commands.common import confirm, fmt_time, select, write_target
+from dj_librarian.commands.common import clean_backups, confirm, fmt_time, select, write_target
 
 
 def add_parser(sub) -> None:
@@ -55,11 +55,12 @@ def run(args) -> None:
         print("cancelled. dj-librarian wrote nothing.")
         return
 
-    target = write_target(db, args.db)
+    target = write_target(db, args.db, "apply")
     stats = writer.apply(target, [p for p, _ in todo], parts, record=not args.db)
     print("written: " + ", ".join(f"{k} {v}" for k, v in stats.items()))
     if not args.db:
         print("to undo: dj-librarian restore (restores the backup above)")
+        clean_backups()
 
 
 def _fmt_cues(cues: dict[str, tuple[str, float]]) -> str:

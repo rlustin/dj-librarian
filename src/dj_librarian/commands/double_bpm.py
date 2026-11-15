@@ -1,7 +1,7 @@
 """Double the BPM and the beat grid of tracks that rekordbox analysed at half tempo."""
 
 from dj_librarian import grid, library, writer
-from dj_librarian.commands.common import confirm, load_checks, matches, track_name
+from dj_librarian.commands.common import clean_backups, confirm, load_checks, make_backup, matches, track_name
 from dj_librarian.progress import Steps
 
 
@@ -54,9 +54,8 @@ def run(args) -> None:
         return
 
     writer.ensure_rekordbox_closed()
-    backup = writer.backup(writer.db_path())
-    writer.backup_analysis(backup, [p for c, _, _ in changes for p in (c.dat, c.ext)])
-    print(f"backup (master.db and analysis files): {backup}")
+    make_backup("double-bpm", db, [p for c, _, _ in changes for p in (c.dat, c.ext)])
     print(f"written: {grid.apply(db, [c for c, _, _ in changes])} tracks")
     print("\nNext, open rekordbox. Make sure that the BPM, the beat grid, the phrases and the cues are correct.\n"
           "to undo: dj-librarian restore (restores the backup above)")
+    clean_backups()

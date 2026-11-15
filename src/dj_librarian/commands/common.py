@@ -4,10 +4,12 @@ import csv
 import os
 import sys
 from collections import Counter
+from pathlib import Path
 
-from dj_librarian import library, proposals, writer
+from dj_librarian import claude_genres, library, proposals, writer
 from dj_librarian.cache import Cache
 from dj_librarian.progress import Steps
+from dj_librarian.terminal import warn
 
 
 def quiet_stderr() -> None:
@@ -72,10 +74,48 @@ def load_checks(db, steps: Steps):
     return tracks, analysis, yours, report
 
 
-def write_target(db: library.MasterDatabase, test_copy: str | None) -> library.MasterDatabase:
+def write_target(db: library.MasterDatabase, test_copy: str | None, command: str) -> library.MasterDatabase:
     """The database to write: the test copy of --db, or the real library after a backup."""
     if test_copy:
         return writer.open_test_copy(test_copy)
     writer.ensure_rekordbox_closed()
-    print(f"backup: {writer.backup(writer.db_path())}")
+    make_backup(command, db)
     return db
+
+
+def make_backup(command: str, db: library.MasterDatabase, analysis: list[Path] | None = None) -> None:
+    """Back up master.db, and the analysis files that the command changes. After the write, use clean_backups."""
+    backup = writer.backup(writer.db_path(), command)
+    if analysis is None:
+        print(f"backup: {backup}")
+    else:
+        writer.backup_analysis(backup, analysis)
+        print(f"backup (master.db and analysis files): {backup}")
+    try:
+        claude_genres.remember_urls(db, backup)
+    except (OSError, ValueError) as error:  # Not a reason to stop: dj-librarian reads the backup later
+        print(warn(f"dj-librarian cannot keep the Bandcamp links of the comments now: {error}"))
+
+
+def clean_backups() -> None:
+    """Delete the old backups. Do this after the write: a problem here must not stop a write that you confirmed."""
+    try:
+        if unread := claude_genres.unread_backups(writer.old_backups()):
+            print(f"dj-librarian reads the Bandcamp links of {plural(len(unread), 'old backup')}. "
+                  "Then it deletes them. This can take some minutes.")
+        cleanup = writer.delete_old_backups()
+    except Exception as error:  # noqa: BLE001 - the write is complete, and the next write tries again
+        print(warn(f"dj-librarian cannot delete the old backups: {error}"))
+        return
+    if cleanup.deleted:
+        print(f"deleted {plural(len(cleanup.deleted), 'old backup')}. dj-librarian keeps the first backup "
+              f"and the last {writer.KEEP_BACKUPS}. The first backup keeps the original grids.")
+    if cleanup.stopped_at:
+        print(warn(f"dj-librarian cannot read {cleanup.stopped_at}. Thus it does not delete it or the newer "
+                   "backups. If you do not need it, delete it yourself."))
+    if cleanup.error:
+        print(warn(f"{cleanup.error}\ndj-librarian tries again at the next write."))
+
+
+def plural(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "s")

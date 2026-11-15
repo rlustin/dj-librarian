@@ -14,7 +14,15 @@ from pyrekordbox import AnlzFile
 
 from dj_librarian import beats, grid, library, proposals, store, waveform, writer
 from dj_librarian.cache import Cache
-from dj_librarian.commands.common import confirm, matches, quiet_stderr, track_name, write_csv
+from dj_librarian.commands.common import (
+    clean_backups,
+    confirm,
+    make_backup,
+    matches,
+    quiet_stderr,
+    track_name,
+    write_csv,
+)
 from dj_librarian.player import Player
 from dj_librarian.progress import Steps
 from dj_librarian.terminal import Keys, accent, bold, clear, dim, replace_first_line, replace_lines, warn
@@ -444,15 +452,14 @@ def _apply(db, items: list[Item], decisions: dict[str, dict], yes: bool) -> None
         print("cancelled. dj-librarian wrote nothing.")
         return
     writer.ensure_rekordbox_closed()
-    backup = writer.backup(writer.db_path())
-    writer.backup_analysis(backup, [p for c in changes for p in (c.dat, c.ext)])
-    print(f"backup (master.db and analysis files): {backup}")
+    make_backup("check-grids", db, [p for c in changes for p in (c.dat, c.ext)])
     print(f"written: {grid.apply(db, changes)} tracks")
     audio = {item.track.id: item.audio for item in items}
     mark_written({c.track.id: (c.dat, audio[c.track.id]) for c in changes})
     print("\nNext, open rekordbox and make sure that the grids are correct. "
           "Then `dj-librarian apply` moves the cues of dj-librarian to the new phrases.\n"
           "to undo: dj-librarian restore (restores the backup above)")
+    clean_backups()
 
 
 def _columns() -> int:

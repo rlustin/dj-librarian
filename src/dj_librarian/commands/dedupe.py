@@ -2,7 +2,7 @@
 
 from dj_librarian import dedupe, library, proposals
 from dj_librarian.cache import Cache
-from dj_librarian.commands.common import confirm, track_name, write_csv, write_target
+from dj_librarian.commands.common import clean_backups, confirm, track_name, write_csv, write_target
 from dj_librarian.progress import Steps
 
 
@@ -90,7 +90,7 @@ def run(args) -> None:
         print("cancelled. dj-librarian wrote nothing.")
         return
 
-    stats = dedupe.apply(write_target(db, args.db), groups)
+    stats = dedupe.apply(write_target(db, args.db, "dedupe"), groups)
     print("written: " + ", ".join(f"{k} {v}" for k, v in stats.items()))
     genres = {g.keeper.track.id: g.genre for g in groups if g.genre}
     if genres and not args.db:
@@ -101,6 +101,7 @@ def run(args) -> None:
           "and use Remove from Collection. The files stay on the disk.")
     if not args.db:
         print("to undo: dj-librarian restore (restores the backup above)")
+        clean_backups()
 
 
 def _short_path(path: str) -> str:
