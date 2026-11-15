@@ -9,7 +9,7 @@ import anlz
 from helpers import track
 
 TEMPO = 8500  # 85 BPM x 100
-BEATS = [((i % 4) + 1, TEMPO, 200 + round(i * 60000 / 85)) for i in range(16)]
+BEATS = anlz.grid(85)
 PHRASES = [{"index": 1, "beat": 1, "kind": 1}, {"index": 2, "beat": 9, "kind": 2, "beat_fill": 15}]
 
 

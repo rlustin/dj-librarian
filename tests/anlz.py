@@ -8,6 +8,11 @@ PHRASE = {
 }
 
 
+def grid(bpm: float, count: int = 16) -> list[tuple[int, int, int]]:
+    """A constant beat grid that starts at 200 ms, in the form of `dat`."""
+    return [((i % 4) + 1, round(bpm * 100), 200 + round(i * 60000 / bpm)) for i in range(count)]
+
+
 def _file(tags: list[bytes]) -> bytes:
     body = b"".join(tags)
     header = structs.AnlzFileHeader.build({
