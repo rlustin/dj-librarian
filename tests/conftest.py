@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,7 @@ def home(tmp_path, monkeypatch):
         if isinstance(path, Path) and path.suffix == ".json":
             monkeypatch.setattr(store, name, tmp_path / path.name)
     monkeypatch.setattr(store, "BACKUP_DIR", tmp_path / "backups")
+    monkeypatch.setattr(store, "ANALYSIS_CACHE", tmp_path / "analysis.sqlite")
     return tmp_path
 
 
@@ -34,3 +36,29 @@ def db(home, monkeypatch):
     library = empty_library(home)
     yield library
     library.close()
+
+
+@pytest.fixture
+def unencrypted(db, monkeypatch):
+    """The library of the `db` fixture has no encryption. dj-librarian opens the real one with encryption."""
+    from dj_librarian import library, writer
+
+    for module in (library, writer):
+        monkeypatch.setattr(module, "MasterDatabase", partial(module.MasterDatabase, unlock=False))
+    return db
+
+
+@pytest.fixture
+def analysed(unencrypted, home, monkeypatch):
+    """The analysis cache of the library of the `db` fixture. The commands open and write this library."""
+    from dj_librarian import library, writer
+    from dj_librarian.cache import Cache
+
+    monkeypatch.setattr(library, "open_db", lambda: unencrypted)
+    # Else a command makes its backup from the master.db of your real rekordbox
+    monkeypatch.setattr(writer, "db_path", lambda: home / "master.db")
+    monkeypatch.setattr(writer, "get_rekordbox_pid", lambda: 0)
+    (home / "share").mkdir()  # pyrekordbox looks for the analysis files of the tracks in this folder
+    analyses = Cache()
+    yield analyses
+    analyses.conn.close()
