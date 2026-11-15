@@ -7,15 +7,16 @@ from pathlib import Path
 
 import numpy as np
 
+from dj_librarian import store
 from dj_librarian.audio import ANALYSIS_VERSION
 from dj_librarian.library import AudioFile
-from dj_librarian.store import ANALYSIS_CACHE
 
 ARRAYS = {"embedding": np.float32, "env_full": np.float16, "env_low": np.float16}
 
 
 class Cache:
-    def __init__(self, path: Path = ANALYSIS_CACHE) -> None:
+    def __init__(self, path: Path | None = None) -> None:
+        path = path or store.ANALYSIS_CACHE  # Not a default value: the tests change it after the import
         path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
         self.conn.execute(
