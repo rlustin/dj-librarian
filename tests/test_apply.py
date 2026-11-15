@@ -32,7 +32,7 @@ def test_apply_writes_the_proposals_and_keeps_a_record(library, capsys):
     output = capsys.readouterr().out
     assert "14 tracks will change: genre 1, comment 14, cues 14 (on 14 tracks)" in output
     assert "genre:   (empty)  ->  Jungle" in output
-    assert "1 genre changes wait for review" in output
+    assert "1 genre change waits for review" in output
     assert "to undo: dj-librarian restore" in output
 
 

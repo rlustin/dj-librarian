@@ -40,7 +40,7 @@ def test_double_bpm_shows_the_changes_and_writes_nothing(db, library, capsys):
 
     assert dat.read_bytes() == before and db.get_content(ID="half").BPM == 8500
     output = capsys.readouterr().out
-    assert "1 tracks have half the BPM of their genre." in output
+    assert "1 track has half the BPM of its genre." in output
     assert " 85.00 -> 170.00 BPM  Artist - Half  (Jungle, median 170)" in output
     assert "excluded with --exclude (1):\n  Artist - Live set" in output
     assert "dj-librarian does not change these tracks (1):\n  Artist - No files: no analysis files" in output
@@ -56,14 +56,14 @@ def test_double_bpm_apply_doubles_the_bpm_and_the_grid(db, library, capsys):
     assert len(_grid(dat)) == 2 * len(HALF) and {e.tempo for e in _grid(dat)} == {17000}
     backup = writer.backups()[0]
     assert sorted(store.read_json(backup / writer.ANALYSIS_MANIFEST, {}).values()) == [str(dat), str(ext)]
-    assert "written: 1 tracks" in capsys.readouterr().out
+    assert "written: 1 track" in capsys.readouterr().out
 
 
 def test_double_bpm_of_one_track(db, library, capsys):
     double_bpm.run(_args(track="no files", exclude=[]))
 
     output = capsys.readouterr().out
-    assert "0 tracks have half the BPM" in output and "Artist - No files: no analysis files" in output
+    assert "0 tracks have half the BPM of their genre" in output and "Artist - No files: no analysis files" in output
     assert "Live set" not in output and "Artist - Half" not in output
 
 

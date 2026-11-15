@@ -1,4 +1,4 @@
-"""Single key presses, colours and a line prompt with completion, for the interactive commands."""
+"""Single key presses, colours and a line prompt with completion, for the interactive commands. Counts in text."""
 
 import os
 import re
@@ -13,6 +13,11 @@ COLOUR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 SCREEN = sys.stdout.isatty()
 ARROWS = {"C": "right", "D": "left", "A": "up", "B": "down", "H": "home", "F": "end"}
 ESCAPE = re.compile(r"\x1b(?:\[[0-9;]*[A-Za-z~]|O[A-Za-z])?")
+
+
+def plural(n: int, word: str, words: str | None = None) -> str:
+    """"1 track", "2 tracks". `words`: the plural, if it is not `word` + "s"."""
+    return f"{n} {word if n == 1 else words or word + 's'}"
 
 
 def _style(code: str):

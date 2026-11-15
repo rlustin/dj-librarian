@@ -34,7 +34,7 @@ def test_check_shows_what_looks_wrong(library, tmp_path, capsys):
     assert Counter(row["kind"] for row in rows) == {"duplicate": 1, "genre name": 1, "outlier": 1, "genre": 2}
     assert next(row for row in rows if row["kind"] == "outlier")["id"] == "odd"
     output = capsys.readouterr().out
-    assert ("Duplicates: 1 pairs of copies of the same track, 1 of them with different genres. "
+    assert ("Duplicates: 1 pair of copies of the same track, 1 of them with different genres. "
             "1 to merge with `dj-librarian dedupe`.") in output
     assert "Artist - Copy [Dub]  =  Artist - Copy [dub]" in output
     assert "Other versions with the same sound: 0 pairs" in output

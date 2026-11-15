@@ -25,7 +25,7 @@ from dj_librarian.commands.common import (
 )
 from dj_librarian.player import Player
 from dj_librarian.progress import Steps
-from dj_librarian.terminal import Keys, accent, bold, clear, dim, replace_first_line, replace_lines, warn
+from dj_librarian.terminal import Keys, accent, bold, clear, dim, plural, replace_first_line, replace_lines, warn
 
 PROBLEMS = ("wrong tempo", "drifts", "shifted")
 PREVIEW_SECONDS = 30
@@ -109,7 +109,7 @@ def _items(db, tracks: list[library.Track], workers: int) -> list[Item]:
     cached = cache.grid_checks()
     todo = [f for f in found if cached.get(f[0].id, ("",))[0] != f[3]]
     steps.done()
-    print(f"{len(tracks)} tracks: {len(tracks) - len(found)} without an audio file or a rekordbox grid, "
+    print(f"{plural(len(tracks), 'track')}: {len(tracks) - len(found)} without an audio file or a rekordbox grid, "
           f"{len(todo)} to check")
     if todo:
         _run_checks(cache, todo, workers)
@@ -196,11 +196,11 @@ def _report(items: list[Item], decisions: dict[str, dict], args) -> None:
     write_csv(args.out, rows, CSV_FIELDS)
     open_problems = sum(i.track.id not in decisions for i in problems)
     accepted = sum(not d.get("keep") for d in decisions.values())
-    print(f"\n{len(rows)} tracks -> {args.out}")
+    print(f"\n{plural(len(rows), 'track')} -> {args.out}")
     if open_problems:
-        print(f"Listen to the {open_problems} better grids with clicks: dj-librarian check-grids --review")
+        print(f"Listen to the {plural(open_problems, 'better grid')} with clicks: dj-librarian check-grids --review")
     if accepted:
-        print(f"Write the {accepted} grids that you accepted: dj-librarian check-grids --apply "
+        print(f"Write the {plural(accepted, 'grid')} that you accepted: dj-librarian check-grids --apply "
               "(rekordbox must be closed)")
 
 
@@ -220,7 +220,7 @@ def _review(items: list[Item], decisions: dict[str, dict], player: Player) -> No
         return
     review = GridReview(pending, player)
     review.run()
-    print(f"\nThis session: {review.accepted} grids accepted, {review.kept} rekordbox grids kept. "
+    print(f"\nThis session: {plural(review.accepted, 'grid')} accepted, {plural(review.kept, 'rekordbox grid')} kept. "
           "To write the accepted grids: dj-librarian check-grids --apply (rekordbox must be closed)")
 
 
@@ -441,19 +441,19 @@ def _apply(db, items: list[Item], decisions: dict[str, dict], yes: bool) -> None
             changes.append(grid.prepare_retime(db, item.track, decision["bpm"], grid_beats))
         except grid.GridError as error:
             problems.append((item.track, str(error)))
-    print(f"\n{len(changes)} accepted grids to write:")
+    print(f"\n{plural(len(changes), 'accepted grid')} to write:")
     for change in changes:
         print(f"  {change.track.bpm or 0:6.2f} -> {change.bpm / 100:6.2f} BPM  {track_name(change.track)}")
     for t, problem in problems:
         print(f"  dj-librarian cannot change {track_name(t)}: {problem}")
     if not changes:
         return
-    if not yes and not confirm(f"\nwrite the grids of {len(changes)} tracks?"):
+    if not yes and not confirm(f"\nwrite the grids of {plural(len(changes), 'track')}?"):
         print("cancelled. dj-librarian wrote nothing.")
         return
     writer.ensure_rekordbox_closed()
     make_backup("check-grids", db, [p for c in changes for p in (c.dat, c.ext)])
-    print(f"written: {grid.apply(db, changes)} tracks")
+    print(f"written: {plural(grid.apply(db, changes), 'track')}")
     audio = {item.track.id: item.audio for item in items}
     mark_written({c.track.id: (c.dat, audio[c.track.id]) for c in changes})
     print("\nNext, open rekordbox and make sure that the grids are correct. "

@@ -5,6 +5,7 @@ from collections import Counter
 from dj_librarian import checks, dedupe, library, tagging
 from dj_librarian.commands.common import load_checks, neighbours, track_name, write_csv
 from dj_librarian.progress import Steps
+from dj_librarian.terminal import plural
 
 CSV_FIELDS = ["kind", "genre", "track", "detail", "id", "path"]
 
@@ -27,7 +28,7 @@ def run(args) -> None:
             raise SystemExit(f'no track has the genre "{args.genre}". Genres: {", ".join(sorted(report.genres))}')
         stats = report.genres[yours[members[0][0].id]]
         bpm = f", median {stats.median_bpm:.0f} BPM" if stats.median_bpm else ""
-        print(f"\n{stats.name}: {stats.tracks} tracks{bpm}. On average, {stats.consistency:.0%} of the "
+        print(f"\n{stats.name}: {plural(stats.tracks, 'track')}{bpm}. On average, {stats.consistency:.0%} of the "
               f"{tagging.KNN_K} nearest tracks also have this genre.")
         print(f"It mixes most with: {neighbours(Counter(dict(stats.mixed_with)))}")
         print("Most typical sound first. ! = none of the nearest tracks has this genre.\n")
@@ -66,9 +67,10 @@ def run(args) -> None:
     if waiting:
         todo.append(f'{waiting} merged, in the playlist "{dedupe.DUPLICATES_PLAYLIST}": '
                     "remove them from the collection in rekordbox")
-    section(f"Duplicates: {len(copies)} pairs of copies of the same track, {different} of them with different genres. "
+    section(f"Duplicates: {plural(len(copies), 'pair')} of copies of the same track, "
+            f"{different} of them with different genres. "
             + ". ".join(todo) + ".", copies, pair_line, pair_row("duplicate"))
-    section(f"Other versions with the same sound: {len(versions)} pairs (edit, extended, instrumental, "
+    section(f"Other versions with the same sound: {plural(len(versions), 'pair')} (edit, extended, instrumental, "
             "other length). dj-librarian does not merge them.", versions, pair_line, pair_row("other version"))
 
     names = ([("same name, other spelling", ", ".join(f"{n} ({c})" for n, c in v)) for v in report.variants]
@@ -107,4 +109,4 @@ def run(args) -> None:
 
 def _write_rows(path: str, rows: list[dict]) -> None:
     write_csv(path, rows, CSV_FIELDS)
-    print(f"\n{len(rows)} rows -> {path}")
+    print(f"\n{plural(len(rows), 'row')} -> {path}")

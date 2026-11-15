@@ -4,8 +4,8 @@ from contextlib import suppress
 from pathlib import Path
 
 from dj_librarian import claude_genres, store, writer
-from dj_librarian.commands.common import confirm, plural
-from dj_librarian.terminal import warn
+from dj_librarian.commands.common import confirm
+from dj_librarian.terminal import plural, warn
 
 
 def add_parser(sub) -> None:

@@ -4,6 +4,7 @@ from collections import Counter
 
 from dj_librarian import library, writer
 from dj_librarian.commands.common import clean_backups, confirm, fmt_time, select, write_target
+from dj_librarian.terminal import plural
 
 
 def add_parser(sub) -> None:
@@ -31,8 +32,8 @@ def run(args) -> None:
         return
     counts = Counter(part for _, c in todo for part in c)
     cue_count = sum(len(c["cues"]) for _, c in todo if "cues" in c)
-    print(f"{len(todo)} tracks will change: genre {counts['genre']}, comment {counts['comment']}, "
-          f"cues {cue_count} (on {counts['cues']} tracks), labels on your cues {counts['labels']}\n")
+    print(f"{plural(len(todo), 'track')} will change: genre {counts['genre']}, comment {counts['comment']}, "
+          f"cues {cue_count} (on {plural(counts['cues'], 'track')}), labels on your cues {counts['labels']}\n")
     for p, c in todo[:8]:
         print(f"  {p.track.artist} - {p.track.title}")
         if "genre" in c:
@@ -49,7 +50,9 @@ def run(args) -> None:
         print(f"  ... and {len(todo) - 8} more (see `dj-librarian report`)")
     pending = sum(p.genre_pending for p in selected)
     if pending and "genre" in parts:
-        print(f"\n{pending} genre changes wait for review. `apply` does not write them (`dj-librarian review-genres`).")
+        waits, them = ("waits", "it") if pending == 1 else ("wait", "them")
+        print(f"\n{plural(pending, 'genre change')} {waits} for review. "
+              f"`apply` does not write {them} (`dj-librarian review-genres`).")
 
     if not args.yes and not confirm("\nwrite these changes?"):
         print("cancelled. dj-librarian wrote nothing.")

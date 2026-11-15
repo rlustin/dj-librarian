@@ -5,7 +5,7 @@ import pytest
 
 from dj_librarian.commands import report
 
-from helpers import add_content, fill_and_review
+from helpers import add_analysed, add_content, fill_and_review, sound
 
 
 @pytest.fixture
@@ -36,6 +36,15 @@ def test_report_writes_a_row_for_each_analysed_track(library, tmp_path, capsys):
     assert f"14 tracks in report (14/15 analysed in total) -> {tmp_path / 'report.csv'}" in output
     assert "genre fill: 1" in output and "genre review (pending): 1" in output
     assert "genre self-check on your 13 tagged tracks: confident guess for 13, of which 12 (92%)" in output
+    assert "warning: only 14 tracks have an analysis." in output
+
+
+def test_report_with_one_analysed_track(db, analysed, tmp_path, capsys):
+    add_analysed(db, analysed, "one", sound(0, 0), "Jungle", "One")
+    db.commit()
+
+    assert list(_run(tmp_path)) == ["One"]
+    assert "warning: only 1 track has an analysis." in capsys.readouterr().out
 
 
 def test_report_of_one_track(library, tmp_path):

@@ -64,8 +64,8 @@ def test_ask_claude_asks_about_the_tracks_without_a_guess_and_the_outliers(libra
     assert "current genre: Grime." in claude.prompts[0]
     assert claude.web == [True]
     output = capsys.readouterr().out
-    assert "1 tracks without a genre, 1 tracks that do not sound like your genre" in output
-    assert "2 tracks in 1 calls to Claude (opus, web search on)" in output
+    assert "1 track without a genre, 1 track that does not sound like your genre" in output
+    assert "2 tracks in 1 call to Claude (opus, web search on)" in output
     assert "dj-librarian saved 2 answers." in output
     assert "new genres proposed: Gqom (1)" in output
 
@@ -81,7 +81,7 @@ def test_ask_claude_does_not_ask_again_until_the_answer_is_old(library, claude, 
     ask_claude.run(_args())
     assert "0 tracks in 0 calls" in capsys.readouterr().out  # Without --refresh, an answer stays
     ask_claude.run(_args(refresh=True))
-    assert "2 tracks in 1 calls" in capsys.readouterr().out
+    assert "2 tracks in 1 call" in capsys.readouterr().out
 
 
 def test_a_failed_call_does_not_stop_the_other_calls(library, monkeypatch, capsys):
@@ -92,7 +92,7 @@ def test_a_failed_call_does_not_stop_the_other_calls(library, monkeypatch, capsy
 
     assert set(claude_genres.load_answers()) == {"mystery"}
     output = capsys.readouterr().out
-    assert "claude failed: usage limit" in output and "dj-librarian saved 1 answers." in output
+    assert "claude failed: usage limit" in output and "dj-librarian saved 1 answer." in output
 
 
 def test_ask_claude_with_a_limit_and_without_web_search(library, claude, capsys):
@@ -100,7 +100,7 @@ def test_ask_claude_with_a_limit_and_without_web_search(library, claude, capsys)
 
     assert len(claude_genres.load_answers()) == 1
     assert claude.web == [False]
-    assert "1 tracks in 1 calls to Claude (opus, web search off)" in capsys.readouterr().out
+    assert "1 track in 1 call to Claude (opus, web search off)" in capsys.readouterr().out
 
 
 def test_self_check_compares_the_answers_with_your_genres_and_saves_nothing(library, claude, capsys):
