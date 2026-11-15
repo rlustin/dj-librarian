@@ -2,7 +2,7 @@
 
 from dj_librarian import dedupe, library, proposals
 from dj_librarian.cache import Cache
-from dj_librarian.commands.common import confirm, track_name, write_csv, write_target
+from dj_librarian.commands.common import clean_backups, confirm, track_name, write_csv, write_target
 from dj_librarian.progress import Steps
 
 
@@ -101,6 +101,7 @@ def run(args) -> None:
           "and use Remove from Collection. The files stay on the disk.")
     if not args.db:
         print("to undo: dj-librarian restore (restores the backup above)")
+        clean_backups()
 
 
 def _short_path(path: str) -> str:

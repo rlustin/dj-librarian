@@ -21,6 +21,9 @@ files of rekordbox. These formats have no public documentation. Read these rules
 
 - Close rekordbox before a command writes. dj-librarian stops if rekordbox is open.
 - Before each write, dj-librarian makes a backup. `dj-librarian restore` puts the last backup back.
+  dj-librarian keeps the first backup and the last 10 backups. It deletes the backups between them.
+  The first backup also gets the original grids from the deleted backups. To keep a backup, give its folder
+  another name. The first backup stays the first backup if you give it another name.
 - Each command that writes shows the changes first and asks you to confirm them.
 - Keep your own backup of the rekordbox library too.
 

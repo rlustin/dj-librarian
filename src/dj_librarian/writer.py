@@ -1,7 +1,9 @@
 """Write proposals into a rekordbox master.db. Close rekordbox before you write."""
 
+import re
 import shutil
 from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -28,6 +30,8 @@ ANALYSIS_DIR = "analysis"  # copies of rekordbox analysis files (beat grids), if
 ANALYSIS_MANIFEST = "analysis.json"  # copy name -> original path
 RECORDS_DIR = "dj-librarian"  # copies of the files of dj-librarian at the time of the backup
 BACKUP_INFO = "backup.json"
+KEEP_BACKUPS = 10  # and the first backup, which has the library from before the first write of dj-librarian
+BACKUP_NAME = re.compile(r"\d{4}-\d{2}-\d{2}_\d{6}(_\d+)?")  # Give a backup another name to keep it
 
 
 def ensure_rekordbox_closed() -> None:
@@ -77,17 +81,152 @@ def backup(db_path: Path, command: str) -> Path:
     for path in _records():
         if path.exists():
             shutil.copy2(path, target / RECORDS_DIR / path.name)
-    store.write_json(target / BACKUP_INFO, {"command": command})
+    store.write_json(target / BACKUP_INFO, {"command": command, "made": target.name})
+    _complete_info()
     return target
 
 
+def _folders() -> list[Path]:
+    if not store.BACKUP_DIR.exists():
+        return []
+    return sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir() and not p.name.startswith("."))
+
+
 def backups() -> list[Path]:
-    """The oldest first."""
-    return sorted(p for p in store.BACKUP_DIR.iterdir() if p.is_dir()) if store.BACKUP_DIR.exists() else []
+    """The backups that dj-librarian made, the oldest first."""
+    return [p for p in _folders() if BACKUP_NAME.fullmatch(p.name)]
+
+
+def kept_backups() -> list[Path]:
+    """The backups that you gave another name, the oldest first. dj-librarian does not delete them."""
+    return sorted((p for p in _folders() if not BACKUP_NAME.fullmatch(p.name)), key=lambda p: made(p) or "~")
+
+
+def _info(backup_dir: Path) -> dict:
+    try:
+        return store.read_json(backup_dir / BACKUP_INFO, {})
+    except (OSError, ValueError):  # A damaged backup.json must not stop each later write
+        return {}
 
 
 def backup_command(backup_dir: Path) -> str | None:
-    return store.read_json(backup_dir / BACKUP_INFO, {}).get("command")
+    return _info(backup_dir).get("command")
+
+
+def made(backup_dir: Path) -> str | None:
+    """The time of the backup, as in the folder names. The name of a backup can change, this time does not."""
+    return _info(backup_dir).get("made") or (backup_dir.name if BACKUP_NAME.fullmatch(backup_dir.name) else None)
+
+
+def first_backup() -> Path | None:
+    """The backup with the library from before the first write. It stays the first one if you give it another name."""
+    marked = [p for p in _folders() if _info(p).get("first")]
+    found = marked or backups()
+    return found[0] if found else None
+
+
+def _complete_info() -> None:
+    """Older backups have no time and no mark of the first backup. Add them while the names show the time."""
+    for path in backups():
+        if not _info(path).get("made"):
+            store.write_json(path / BACKUP_INFO, _info(path) | {"made": path.name})
+    first = first_backup()
+    if first and not _info(first).get("first"):
+        store.write_json(first / BACKUP_INFO, _info(first) | {"first": True})
+
+
+def old_backups() -> list[Path]:
+    return _old(backups(), first_backup())
+
+
+def _old(found: list[Path], first: Path | None) -> list[Path]:
+    return [p for p in found[:-KEEP_BACKUPS] if p != first]
+
+
+@dataclass
+class Cleanup:
+    deleted: list[Path] = field(default_factory=list)
+    stopped_at: Path | None = None  # A backup that dj-librarian cannot read. It and the newer backups stay.
+    error: str | None = None  # A problem that stopped the deletion
+
+
+def delete_old_backups() -> Cleanup:
+    """Keep the first backup and the last KEEP_BACKUPS backups.
+
+    Some data is only in the backup. Before dj-librarian deletes a backup, the original grids go into the first
+    backup, and the Bandcamp links go into source_urls.json. The oldest copy of a grid is the original. Thus
+    dj-librarian stops at the first backup that it cannot read.
+    """
+    from dj_librarian.claude_genres import read_backup_urls, unread_backups
+
+    found, first = backups(), first_backup()
+    old = _old(found, first)
+    if not old:
+        return Cleanup()
+    cleanup, ready = Cleanup(), []
+    unread = unread_backups(old)
+    try:
+        grids = store.read_json(first / ANALYSIS_MANIFEST, {})
+    except (OSError, ValueError) as error:
+        return Cleanup(error=f"dj-librarian cannot read the first backup {first}: {error}")
+    try:
+        for path in _grid_sources(old, first, found):
+            try:
+                copies = store.read_json(path / ANALYSIS_MANIFEST, {})
+            except (OSError, ValueError):
+                cleanup.stopped_at = path
+                break
+            _keep_analysis(path, copies, first, grids)  # Also if the links stop the deletion here
+            if path in unread and not read_backup_urls(path):
+                cleanup.stopped_at = path
+                break
+            if path in old:
+                ready.append(path)
+        if grids:
+            store.write_json(first / ANALYSIS_MANIFEST, grids)
+    except OSError as error:  # For example, a full disk
+        return Cleanup(error=f"dj-librarian cannot copy the grids into the first backup {first}: {error}")
+    trash = store.BACKUP_DIR / ".deleting"  # If the deletion stops, no half backup stays with the backups
+    try:
+        if trash.exists():
+            shutil.rmtree(trash)
+        trash.mkdir()
+        for path in ready:
+            path.rename(trash / path.name)
+            cleanup.deleted.append(path)
+        shutil.rmtree(trash)
+    except OSError as error:
+        cleanup.error = f"dj-librarian cannot delete the old backups: {error}"
+    return cleanup
+
+
+def _grid_sources(old: list[Path], first: Path, found: list[Path]) -> list[Path]:
+    """The backups that give their grids to the first backup, the oldest first.
+
+    A backup that you gave another name gives its grids when all older backups gave theirs. A backup from
+    before the first backup does not give its grids: they are older than the master.db of the first backup.
+    """
+    recent = [p for p in found if p not in old and p != first]
+    limit = made(recent[0]) if recent else "~"
+    start = made(first) or ""
+    renamed = [p for p in kept_backups() if p != first and start < (made(p) or "~") < limit]
+    return sorted(old + renamed, key=made)
+
+
+def _keep_analysis(old: Path, copies: dict[str, str], first: Path, grids: dict[str, str]) -> None:
+    """Copy the analysis files of the old backup into the first backup, if the first backup has no copy of them.
+
+    The analysis files of the first write are the only copy of the original grids. A restore of the first
+    backup then puts back all the original grids.
+    """
+    known = set(grids.values())
+    for name, original in copies.items():
+        if original not in known and (old / ANALYSIS_DIR / name).exists():
+            (first / ANALYSIS_DIR).mkdir(exist_ok=True)
+            new = f"{len(grids):04d}_{Path(original).name}"
+            shutil.copy2(old / ANALYSIS_DIR / name, first / ANALYSIS_DIR / new)
+            grids[new] = original
+            known.add(original)
 
 
 def backup_analysis(backup_dir: Path, paths: list[Path]) -> None:
@@ -122,8 +261,14 @@ def restore(backup_dir: Path, db_path: Path) -> Path:
             if (backup_dir / RECORDS_DIR / path.name).exists():
                 shutil.copy2(backup_dir / RECORDS_DIR / path.name, path)
     for name, original in store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).items():
-        shutil.copy2(backup_dir / ANALYSIS_DIR / name, original)
+        if Path(original).parent.exists():  # See grids_without_folder
+            shutil.copy2(backup_dir / ANALYSIS_DIR / name, original)
     return current
+
+
+def grids_without_folder(backup_dir: Path) -> list[str]:
+    """The analysis files of the backup that restore cannot put back: rekordbox deleted the folder of the track."""
+    return [p for p in store.read_json(backup_dir / ANALYSIS_MANIFEST, {}).values() if not Path(p).parent.exists()]
 
 
 def changes(proposal: Proposal, parts: set[str]) -> dict:

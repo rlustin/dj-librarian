@@ -7,6 +7,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dj_librarian import checks, claude_genres, library, proposals
 from dj_librarian.commands.common import load_checks
 from dj_librarian.progress import LiveStatus, Steps
+from dj_librarian.terminal import warn
 
 
 def add_parser(sub) -> None:
@@ -37,8 +38,11 @@ def run(args) -> None:
     peers = claude_genres.Peers(context.tracks, yours)
     tags = len(yours)
     steps.step("Find the Bandcamp links in the comments and the backups")
-    urls = claude_genres.source_urls(context.tracks)
+    urls, unreadable = claude_genres.source_urls(context.tracks)
     steps.done()
+    for path in unreadable:
+        print(warn(f"dj-librarian cannot read the Bandcamp links of {path}. It tries again at each run. "
+                   "If you do not need this backup, delete it."))
     web = not args.no_web
 
     outliers: dict[str, str] = {}
